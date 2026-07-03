@@ -1,0 +1,52 @@
+name: "Use case"
+description: "Tell us how you'd use a human+agent visual discussion space — the most valuable contribution right now."
+title: "[use case] "
+labels: ["use-case"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        pairsketch is in the design phase. Real scenarios directly shape the MCP tools, the active-board UX, and the roadmap. Thanks for sharing yours!
+  - type: input
+    id: who
+    attributes:
+      label: Who are you?
+      description: Role and workflow context — e.g. "solo researcher", "backend dev in a 5-person team", "PhD student in robotics".
+    validations:
+      required: true
+  - type: textarea
+    id: scenario
+    attributes:
+      label: The scenario
+      description: What discussion would happen on the board, in what kind of repo? What would the board actually show?
+    validations:
+      required: true
+  - type: textarea
+    id: roles
+    attributes:
+      label: What do the human and the agent each do?
+      description: e.g. "I sketch rough groupings; the agent fills in dependencies and flags contradictions."
+    validations:
+      required: true
+  - type: textarea
+    id: pain
+    attributes:
+      label: What's painful about doing this in a terminal today?
+  - type: dropdown
+    id: obsidian
+    attributes:
+      label: Do you use Obsidian?
+      options:
+        - "Yes, daily"
+        - "Sometimes"
+        - "No"
+  - type: input
+    id: harness
+    attributes:
+      label: Which agent harness(es)?
+      description: Claude Code, Codex, Cursor, custom MCP client, …
+  - type: textarea
+    id: priorities
+    attributes:
+      label: Must-have vs nice-to-have
+      description: One line each helps us prioritize.

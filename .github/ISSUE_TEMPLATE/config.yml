@@ -1,0 +1,6 @@
+# TODO before going live: replace OWNER with the actual GitHub org/user and enable Discussions.
+blank_issues_enabled: true
+contact_links:
+  - name: 💬 Discussions
+    url: https://github.com/OWNER/pairsketch/discussions
+    about: Open-ended questions and brainstorming.

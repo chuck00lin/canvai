@@ -1,0 +1,22 @@
+name: "Feature request / design feedback"
+description: "Propose a feature, or challenge a design decision (cite D1–D5 from docs/design.md)."
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What should pairsketch do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why? What scenario fails without it?
+    validations:
+      required: true
+  - type: input
+    id: decision
+    attributes:
+      label: Related design decision (if any)
+      description: "e.g. D2 (no Mermaid engine), D5 (turn-based first) — see docs/design.md"
