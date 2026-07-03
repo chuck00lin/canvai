@@ -14,9 +14,10 @@ import {
   type Node as FlowNode,
 } from '@xyflow/react'
 import { api, type Mutation } from '../api'
-import { BoardActions, type BoardActionsValue } from './actions'
+import { BoardActions, EditRequest, type BoardActionsValue, type EditRequestValue } from './actions'
 import { absolutePosition, colorOf, toFlow, type PSFlowNode } from './mapping'
 import { nodeTypes } from './nodes'
+import { COARSE_QUERY, useMediaQuery } from '../useMediaQuery'
 
 interface Props {
   path: string
@@ -41,6 +42,12 @@ function BoardInner({ path, changeSignal }: Props) {
   const nodesRef = useRef<PSFlowNode[]>([])
   nodesRef.current = nodes
   const { screenToFlowPosition } = useReactFlow()
+  // touch devices get a selection toolbar: double-click, drag-from-handle and
+  // the Delete key have no natural touch equivalent
+  const coarse = useMediaQuery(COARSE_QUERY)
+  const [selection, setSelection] = useState<{ nodes: string[]; edges: string[] }>({ nodes: [], edges: [] })
+  const [connectFrom, setConnectFrom] = useState<string | null>(null)
+  const [editReq, setEditReq] = useState<EditRequestValue>({ id: '', seq: 0 })
 
   const load = useCallback(async () => {
     try {
@@ -177,9 +184,8 @@ function BoardInner({ path, changeSignal }: Props) {
     [mutate, screenToFlowPosition],
   )
 
-  // double-click an edge = reverse its direction (arrows are semantics)
-  const onEdgeDoubleClick = useCallback(
-    (_event: ReactMouseEvent, edge: FlowEdge) => {
+  const reverseEdge = useCallback(
+    (edge: FlowEdge) => {
       mutate([
         { kind: 'delete_edge', id: edge.id },
         {
@@ -195,35 +201,107 @@ function BoardInner({ path, changeSignal }: Props) {
     [mutate],
   )
 
+  // double-click an edge = reverse its direction (arrows are semantics)
+  const onEdgeDoubleClick = useCallback(
+    (_event: ReactMouseEvent, edge: FlowEdge) => reverseEdge(edge),
+    [reverseEdge],
+  )
+
+  const onSelectionChange = useCallback(
+    (params: { nodes: FlowNode[]; edges: FlowEdge[] }) => {
+      setSelection({ nodes: params.nodes.map((n) => n.id), edges: params.edges.map((e) => e.id) })
+    },
+    [],
+  )
+
+  // connect mode (touch): 連線 on the toolbar, then tap the target node
+  const onNodeClick = useCallback(
+    (_event: ReactMouseEvent, node: FlowNode) => {
+      if (!connectFrom) return
+      if (node.id !== connectFrom) mutate([{ kind: 'add_edge', from: connectFrom, to: node.id }])
+      setConnectFrom(null)
+    },
+    [connectFrom, mutate],
+  )
+
+  const onPaneClick = useCallback(() => setConnectFrom(null), [])
+
+  const selNode =
+    selection.nodes.length === 1 && selection.edges.length === 0
+      ? nodes.find((n) => n.id === selection.nodes[0])
+      : undefined
+  const selEdge =
+    selection.edges.length === 1 && selection.nodes.length === 0
+      ? edges.find((e) => e.id === selection.edges[0])
+      : undefined
+
   return (
     <div className="ps-board" onDoubleClick={onWrapperDoubleClick}>
       <BoardActions.Provider value={actions}>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeDragStart={onNodeDragStart}
-          onNodeDragStop={onNodeDragStop}
-          onNodesDelete={onNodesDelete}
-          onEdgesDelete={onEdgesDelete}
-          onEdgeDoubleClick={onEdgeDoubleClick}
-          deleteKeyCode={['Backspace', 'Delete']}
-          connectionRadius={44}
-          fitView
-          minZoom={0.05}
-          zoomOnDoubleClick={false}
-        >
-          <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} />
-          <Controls showInteractive={false} />
-          <MiniMap pannable zoomable nodeColor={(n) => colorOf((n as PSFlowNode).data?.node?.color) ?? '#e2e5e9'} />
-        </ReactFlow>
+        <EditRequest.Provider value={editReq}>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeDragStart={onNodeDragStart}
+            onNodeDragStop={onNodeDragStop}
+            onNodesDelete={onNodesDelete}
+            onEdgesDelete={onEdgesDelete}
+            onEdgeDoubleClick={onEdgeDoubleClick}
+            onSelectionChange={onSelectionChange}
+            onNodeClick={onNodeClick}
+            onPaneClick={onPaneClick}
+            deleteKeyCode={['Backspace', 'Delete']}
+            connectionRadius={44}
+            fitView
+            minZoom={0.05}
+            zoomOnDoubleClick={false}
+          >
+            <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} />
+            <Controls showInteractive={false} />
+            <MiniMap pannable zoomable nodeColor={(n) => colorOf((n as PSFlowNode).data?.node?.color) ?? '#e2e5e9'} />
+          </ReactFlow>
+        </EditRequest.Provider>
       </BoardActions.Provider>
       <button className="ps-addcard" onClick={addCard} title="add a text card at the viewport center">
         ＋ card
       </button>
+      {coarse && (connectFrom || selNode || selEdge) && (
+        <div className="ps-toolbar">
+          {connectFrom ? (
+            <>
+              <span className="ps-toolbar-hint">點目標卡片完成連線</span>
+              <button onClick={() => setConnectFrom(null)}>取消</button>
+            </>
+          ) : selNode ? (
+            <>
+              {(selNode.type === 'text' || selNode.type === 'group') && (
+                <button onClick={() => setEditReq((r) => ({ id: selNode.id, seq: r.seq + 1 }))}>✏️ 編輯</button>
+              )}
+              <button onClick={() => setConnectFrom(selNode.id)}>🔗 連線</button>
+              <button
+                className="ps-toolbar-danger"
+                onClick={() => mutate([{ kind: 'delete_node', id: selNode.id }])}
+              >
+                🗑 刪除
+              </button>
+            </>
+          ) : selEdge ? (
+            <>
+              <button onClick={() => reverseEdge(selEdge)}>⇄ 反向</button>
+              <button
+                className="ps-toolbar-danger"
+                onClick={() => mutate([{ kind: 'delete_edge', id: selEdge.id }])}
+              >
+                🗑 刪除
+              </button>
+            </>
+          ) : null}
+        </div>
+      )}
       {error && <div className="ps-error">{error}</div>}
     </div>
   )

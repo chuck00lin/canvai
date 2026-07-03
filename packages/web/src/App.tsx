@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, connectHub, type BoardInfo } from './api'
 import { CanvasBoard } from './board/CanvasBoard'
 import { ChatPanel } from './ChatPanel'
+import { PHONE_QUERY, useMediaQuery } from './useMediaQuery'
 
 export function App() {
   const [boards, setBoards] = useState<BoardInfo[]>([])
@@ -11,8 +12,15 @@ export function App() {
   const [chatSignal, setChatSignal] = useState(0)
   const [agentBusy, setAgentBusy] = useState(false)
   const [offline, setOffline] = useState(false)
+  const phone = useMediaQuery(PHONE_QUERY)
+  // on phones the sidebar and chat are overlays; the canvas owns the screen
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
+  const [chatUnread, setChatUnread] = useState(false)
   const currentRef = useRef<string | null>(null)
   currentRef.current = current
+  const chatOpenRef = useRef(false)
+  chatOpenRef.current = chatOpen
 
   const refreshBoards = useCallback(async () => {
     try {
@@ -38,7 +46,10 @@ export function App() {
         // the active board is the shared focus — follow it
         if (message.active) setCurrent(message.active)
       }
-      if (message.type === 'chat_changed') setChatSignal((n) => n + 1)
+      if (message.type === 'chat_changed') {
+        setChatSignal((n) => n + 1)
+        if (!chatOpenRef.current) setChatUnread(true)
+      }
       if (message.type === 'handoff') setAgentBusy(message.status === 'started')
     })
   }, [refreshBoards])
@@ -51,14 +62,42 @@ export function App() {
       await api.setActive(path)
       await refreshBoards()
       setCurrent(path)
+      setDrawerOpen(false)
     } catch (e) {
       window.alert(e instanceof Error ? e.message : String(e))
     }
   }
 
+  const openChat = () => {
+    setChatOpen(true)
+    setChatUnread(false)
+    setDrawerOpen(false)
+  }
+
   return (
-    <div className="ps-app">
-      <aside className="ps-sidebar">
+    <div className={`ps-app${phone ? ' is-mobile' : ''}`}>
+      {phone && (
+        <header className="ps-topbar">
+          <button className="ps-iconbtn" onClick={() => setDrawerOpen(true)} aria-label="boards">
+            ☰
+          </button>
+          <div className="ps-topbar-title">{current ? current.replace(/\.canvas$/, '') : 'pairsketch'}</div>
+          {agentBusy && <span className="ps-topbar-busy">🤖</span>}
+          <button className="ps-iconbtn" onClick={openChat} aria-label="chat">
+            💬{chatUnread && <i className="ps-dot" />}
+          </button>
+        </header>
+      )}
+      {phone && (drawerOpen || chatOpen) && (
+        <div
+          className="ps-backdrop"
+          onClick={() => {
+            setDrawerOpen(false)
+            setChatOpen(false)
+          }}
+        />
+      )}
+      <aside className={`ps-sidebar${drawerOpen ? ' is-open' : ''}`}>
         <header className="ps-brand">
           <span className="ps-logo">pairsketch</span>
           <span className="ps-tagline">think in pictures, together</span>
@@ -68,7 +107,10 @@ export function App() {
             <div
               key={board.path}
               className={`ps-boarditem${board.path === current ? ' is-current' : ''}`}
-              onClick={() => setCurrent(board.path)}
+              onClick={() => {
+                setCurrent(board.path)
+                setDrawerOpen(false)
+              }}
             >
               <div className="ps-boardname">{board.path.replace(/\.canvas$/, '')}</div>
               <div className="ps-boardmeta">
@@ -96,11 +138,21 @@ export function App() {
           ＋ new board
         </button>
         <footer className="ps-hint">
-          drag = pin · double-click card = edit · double-click canvas = new card
-          <br />
-          double-click edge = reverse arrow · Delete = remove
-          <br />
-          agents connect via MCP (`pairsketch-hub`)
+          {phone ? (
+            <>
+              點卡片＝選取 → 下方工具列（編輯／連線／刪除）
+              <br />
+              拖曳卡片＝pin · 雙指縮放/平移 · ＋ card 在右下
+            </>
+          ) : (
+            <>
+              drag = pin · double-click card = edit · double-click canvas = new card
+              <br />
+              double-click edge = reverse arrow · Delete = remove
+              <br />
+              agents connect via MCP (`pairsketch-hub`)
+            </>
+          )}
         </footer>
       </aside>
       <main className="ps-main">
@@ -110,7 +162,12 @@ export function App() {
           <div className="ps-placeholder">create a board to start sketching with your agent</div>
         )}
       </main>
-      <ChatPanel signal={chatSignal} agentBusy={agentBusy} />
+      <ChatPanel
+        signal={chatSignal}
+        agentBusy={agentBusy}
+        open={chatOpen}
+        onClose={phone ? () => setChatOpen(false) : undefined}
+      />
     </div>
   )
 }

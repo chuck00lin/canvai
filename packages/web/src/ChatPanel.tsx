@@ -7,6 +7,10 @@ interface Props {
   signal: number
   /** true while an agent turn is running */
   agentBusy: boolean
+  /** phone: the panel is a bottom sheet; this drives its visibility */
+  open?: boolean
+  /** phone: render a close button (presence marks sheet mode) */
+  onClose?: () => void
 }
 
 /**
@@ -14,7 +18,7 @@ interface Props {
  * a message hands the turn to the agent (that's the natural expectation of a
  * chat box). The board stays the curated artifact.
  */
-export function ChatPanel({ signal, agentBusy }: Props) {
+export function ChatPanel({ signal, agentBusy, open, onClose }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -32,7 +36,7 @@ export function ChatPanel({ signal, agentBusy }: Props) {
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight })
-  }, [messages, agentBusy])
+  }, [messages, agentBusy, open])
 
   const send = useCallback(
     async (alsoHandoff: boolean) => {
@@ -61,10 +65,17 @@ export function ChatPanel({ signal, agentBusy }: Props) {
   }
 
   return (
-    <aside className="ps-chat">
+    <aside className={`ps-chat${open ? ' is-open' : ''}`}>
       <header className="ps-chat-head">
         <span>chat</span>
-        {agentBusy && <span className="ps-chat-busy">🤖 思考中…</span>}
+        <span className="ps-chat-head-right">
+          {agentBusy && <span className="ps-chat-busy">🤖 思考中…</span>}
+          {onClose && (
+            <button className="ps-chat-close" onClick={onClose} aria-label="close chat">
+              ✕
+            </button>
+          )}
+        </span>
       </header>
       <div className="ps-chat-list" ref={listRef}>
         {messages.map((m) => (

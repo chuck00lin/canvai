@@ -16,3 +16,15 @@ export const BoardActions = createContext<BoardActionsValue>({
   commitGeometry: () => {},
   notifyEditing: () => {},
 })
+
+/**
+ * Edit requests initiated from outside the node component — the touch
+ * toolbar's ✏️ button (double-click is not a touch gesture). `seq` bumps on
+ * every request so asking for the same node twice still triggers.
+ */
+export interface EditRequestValue {
+  id: string
+  seq: number
+}
+
+export const EditRequest = createContext<EditRequestValue>({ id: '', seq: 0 })

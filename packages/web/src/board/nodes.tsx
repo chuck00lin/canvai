@@ -1,9 +1,53 @@
 import { useContext, useEffect, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { Handle, NodeResizer, Position, type NodeProps, type NodeTypes } from '@xyflow/react'
 import { api } from '../api'
-import { BoardActions } from './actions'
+import { BoardActions, EditRequest } from './actions'
 import { colorOf, type PSFlowNode } from './mapping'
 import { Markdown } from '../markdown'
+import { PHONE_QUERY, useMediaQuery } from '../useMediaQuery'
+
+/** listen for toolbar-initiated edit requests (touch has no double-click) */
+function useEditRequest(id: string, begin: () => void) {
+  const editReq = useContext(EditRequest)
+  useEffect(() => {
+    if (editReq.seq > 0 && editReq.id === id) begin()
+    // react to the request bump only; begin() is guarded against re-entry
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editReq])
+}
+
+/**
+ * Phone editor: a card-sized inline textarea under a soft keyboard is
+ * unusable, so editing gets a full-screen modal. Explicit 取消/儲存 —
+ * no save-on-blur, a stray tap must not commit.
+ */
+function PhoneEditor(props: {
+  draft: string
+  setDraft: (value: string) => void
+  onCancel: () => void
+  onSave: () => void
+}) {
+  return createPortal(
+    <div className="ps-modal" onClick={props.onCancel}>
+      <div className="ps-modal-card" onClick={(event) => event.stopPropagation()}>
+        <textarea
+          autoFocus
+          value={props.draft}
+          onChange={(event) => props.setDraft(event.target.value)}
+          placeholder="markdown — ```mermaid fences render as diagrams"
+        />
+        <div className="ps-modal-actions">
+          <button onClick={props.onCancel}>取消</button>
+          <button className="ps-primary" onClick={props.onSave}>
+            儲存
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
 
 const SIDES = [
   ['top', Position.Top],
@@ -53,6 +97,7 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   const { commitText, commitGeometry, notifyEditing } = useContext(BoardActions)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
+  const phone = useMediaQuery(PHONE_QUERY)
   const node = data.node
 
   const begin = () => {
@@ -72,6 +117,7 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
     if (event.key === 'Escape') finish(false)
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') finish(true)
   }
+  useEditRequest(id, begin)
 
   return (
     <div
@@ -90,7 +136,7 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
       />
       <Sides />
       <Pin pinned={data.pinned} />
-      {editing ? (
+      {editing && !phone ? (
         <textarea
           className="ps-editor nodrag nowheel"
           autoFocus
@@ -102,6 +148,9 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
         />
       ) : (
         <Markdown text={node.text ?? ''} />
+      )}
+      {editing && phone && (
+        <PhoneEditor draft={draft} setDraft={setDraft} onCancel={() => finish(false)} onSave={() => finish(true)} />
       )}
     </div>
   )
@@ -179,6 +228,11 @@ function GroupNode({ id, data, selected }: NodeProps<PSFlowNode>) {
     setEditingState(on)
     notifyEditing(on)
   }
+  useEditRequest(id, () => {
+    if (editing) return
+    setDraft(node.label ?? '')
+    setEditing(true)
+  })
 
   return (
     <div className={`ps-group${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)}>
