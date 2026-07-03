@@ -3,7 +3,7 @@ import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import mermaid from 'mermaid'
 
-mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'neutral' })
+mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'neutral', suppressErrorRendering: true })
 
 let mermaidSeq = 0
 
@@ -17,9 +17,17 @@ function MermaidBlock({ code }: { code: string }) {
       .then(({ svg }) => {
         if (!cancelled && ref.current) ref.current.innerHTML = svg
       })
-      .catch(() => {
-        if (!cancelled && ref.current) ref.current.textContent = code
-        // mermaid leaves an error element behind on failure
+      .catch((error: unknown) => {
+        // show WHY it failed instead of silently degrading to raw text —
+        // common trap: parentheses inside unquoted [] labels
+        if (cancelled || !ref.current) return
+        ref.current.innerHTML = ''
+        const banner = document.createElement('div')
+        banner.className = 'ps-mermaid-error'
+        banner.textContent = `mermaid: ${error instanceof Error ? error.message.split('\n')[0] : String(error)}`
+        const pre = document.createElement('pre')
+        pre.textContent = code
+        ref.current.append(banner, pre)
         document.getElementById(`d${id}`)?.remove()
       })
     return () => {

@@ -20,6 +20,8 @@ export type Mutation =
 export interface MutateOutcome {
   /** nodes whose x/y a human changed — these get pinned */
   movedIds: string[]
+  /** nodes removed — their pins should be pruned */
+  deletedIds: string[]
   summary: string[]
 }
 
@@ -27,6 +29,7 @@ export function applyMutations(data: CanvasData, mutations: Mutation[]): MutateO
   if (!data.nodes) data.nodes = []
   if (!data.edges) data.edges = []
   const movedIds: string[] = []
+  const deletedIds: string[] = []
   const summary: string[] = []
 
   const mustGet = (id: string): CanvasNode => {
@@ -97,6 +100,7 @@ export function applyMutations(data: CanvasData, mutations: Mutation[]): MutateO
         const id = mustGet(m.id).id
         data.nodes = data.nodes.filter((n) => n.id !== id)
         data.edges = data.edges.filter((e) => e.fromNode !== id && e.toNode !== id)
+        deletedIds.push(id)
         summary.push(`deleted ${id}`)
         break
       }
@@ -111,5 +115,5 @@ export function applyMutations(data: CanvasData, mutations: Mutation[]): MutateO
         throw new Error(`unknown mutation: ${JSON.stringify(m satisfies never)}`)
     }
   }
-  return { movedIds, summary }
+  return { movedIds, deletedIds, summary }
 }

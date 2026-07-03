@@ -12,13 +12,23 @@ const SIDES = [
 ] as const
 
 function Sides() {
+  // targets first (underneath, drop-only), sources on top: a drag that starts
+  // on a node always starts from a SOURCE handle, so the arrow points the way
+  // you dragged — edge direction is semantics for the agent.
   return (
     <>
       {SIDES.map(([id, position]) => (
-        <Handle key={`s-${id}`} id={id} type="source" position={position} className="ps-handle" />
+        <Handle
+          key={`t-${id}`}
+          id={id}
+          type="target"
+          position={position}
+          className="ps-handle"
+          isConnectableStart={false}
+        />
       ))}
       {SIDES.map(([id, position]) => (
-        <Handle key={`t-${id}`} id={id} type="target" position={position} className="ps-handle" />
+        <Handle key={`s-${id}`} id={id} type="source" position={position} className="ps-handle" />
       ))}
     </>
   )

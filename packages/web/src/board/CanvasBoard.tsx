@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import {
   Background,
   BackgroundVariant,
@@ -156,8 +156,36 @@ function BoardInner({ path, changeSignal }: Props) {
     mutate([{ kind: 'add_text_node', x: center.x - 150, y: center.y - 50, text: 'new card' }])
   }, [mutate, screenToFlowPosition])
 
+  // double-click on empty canvas = new card where you clicked
+  const onWrapperDoubleClick = useCallback(
+    (event: ReactMouseEvent) => {
+      if (!(event.target as HTMLElement).classList.contains('react-flow__pane')) return
+      const position = screenToFlowPosition({ x: event.clientX, y: event.clientY })
+      mutate([{ kind: 'add_text_node', x: position.x - 150, y: position.y - 40, text: 'new card' }])
+    },
+    [mutate, screenToFlowPosition],
+  )
+
+  // double-click an edge = reverse its direction (arrows are semantics)
+  const onEdgeDoubleClick = useCallback(
+    (_event: ReactMouseEvent, edge: FlowEdge) => {
+      mutate([
+        { kind: 'delete_edge', id: edge.id },
+        {
+          kind: 'add_edge',
+          from: edge.target,
+          to: edge.source,
+          fromSide: edge.targetHandle ?? undefined,
+          toSide: edge.sourceHandle ?? undefined,
+          label: typeof edge.label === 'string' ? edge.label : undefined,
+        },
+      ])
+    },
+    [mutate],
+  )
+
   return (
-    <div className="ps-board">
+    <div className="ps-board" onDoubleClick={onWrapperDoubleClick}>
       <BoardActions.Provider value={actions}>
         <ReactFlow
           nodes={nodes}
@@ -170,7 +198,9 @@ function BoardInner({ path, changeSignal }: Props) {
           onNodeDragStop={onNodeDragStop}
           onNodesDelete={onNodesDelete}
           onEdgesDelete={onEdgesDelete}
+          onEdgeDoubleClick={onEdgeDoubleClick}
           deleteKeyCode={['Backspace', 'Delete']}
+          connectionRadius={44}
           fitView
           minZoom={0.05}
           zoomOnDoubleClick={false}

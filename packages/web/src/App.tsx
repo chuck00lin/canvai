@@ -91,7 +91,9 @@ export function App() {
           ＋ new board
         </button>
         <footer className="ps-hint">
-          drag = pin · double-click = edit
+          drag = pin · double-click card = edit · double-click canvas = new card
+          <br />
+          double-click edge = reverse arrow · Delete = remove
           <br />
           agents connect via MCP (`pairsketch-hub`)
         </footer>

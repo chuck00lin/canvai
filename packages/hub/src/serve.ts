@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { WebSocketServer, WebSocket } from 'ws'
 import { diffBoards, isEmptyDiff, type CanvasData } from '@pairsketch/canvas-kit'
 import { createBoard, listBoards, readBoard, readBoardRaw, writeBoard } from './boards.ts'
-import { addPinned, getActiveBoard, getPinned, setActiveBoard } from './state.ts'
+import { addPinned, getActiveBoard, getPinned, removePinned, setActiveBoard } from './state.ts'
 import { appendEvent, readEventsSince, recentAgentWrite } from './events.ts'
 import { applyMutations, type Mutation } from './mutate.ts'
 import { watchRoot } from './watch.ts'
@@ -187,6 +187,7 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
       await writeBoard(root, body.board, working, style)
       snapshots.set(body.board, working)
       if (outcome.movedIds.length > 0) await addPinned(root, body.board, outcome.movedIds)
+      if (outcome.deletedIds.length > 0) await removePinned(root, body.board, outcome.deletedIds)
       await appendEvent(root, {
         origin: 'human',
         kind: 'mutate',
@@ -213,7 +214,12 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
     }
     try {
       const file = await readFile(abs)
-      res.writeHead(200, { 'content-type': MIME[path.extname(abs)] ?? 'application/octet-stream' })
+      const ext = path.extname(abs)
+      res.writeHead(200, {
+        'content-type': MIME[ext] ?? 'application/octet-stream',
+        // hashed assets can cache forever; the shell must revalidate so new builds land on reload
+        'cache-control': ext === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable',
+      })
       res.end(file)
     } catch {
       if (pathname === '/') {

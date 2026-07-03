@@ -8,7 +8,7 @@ import {
   type Op,
 } from '@pairsketch/canvas-kit'
 import { createBoard, listBoards, readBoard, readBoardRaw, writeBoard } from './boards.ts'
-import { getActiveBoard, getPinned, setActiveBoard } from './state.ts'
+import { getActiveBoard, getPinned, removePinned, setActiveBoard } from './state.ts'
 import { appendEvent, readEventsSince, type HubEvent } from './events.ts'
 
 const dirEnum = z.enum(['right', 'below', 'left', 'above'])
@@ -227,6 +227,7 @@ export function createHubServer(root: string): McpServer {
         const working = structuredClone(data) as CanvasData
         const result = applyOps(working, ops as Op[])
         await writeBoard(root, rel, working, style)
+        if (result.deleted.length > 0) await removePinned(root, rel, result.deleted)
         await appendEvent(root, { origin: 'agent', kind: 'ops_applied', board: rel, detail: { summary: result.summary } })
         const created = Object.entries(result.created)
           .filter(([k]) => !/^\$\d+$/.test(k))

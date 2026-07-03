@@ -92,6 +92,8 @@ export interface OpsResult {
   summary: string[]
   /** "$ref" and "$<n>" names -> full ids of nodes created in this batch */
   created: Record<string, string>
+  /** node ids removed by delete_node — callers should prune pins etc. */
+  deleted: string[]
 }
 
 /** Applies ops in order, mutating `data`. Throws on the first invalid op. */
@@ -100,6 +102,7 @@ export function applyOps(data: CanvasData, ops: Op[]): OpsResult {
   if (!data.edges) data.edges = []
   const created: Record<string, string> = {}
   const summary: string[] = []
+  const deleted: string[] = []
   let counter = 0
 
   const resolve = (ref: string): string => {
@@ -191,6 +194,7 @@ export function applyOps(data: CanvasData, ops: Op[]): OpsResult {
         data.nodes.splice(index, 1)
         const before = data.edges.length
         data.edges = data.edges.filter((e) => e.fromNode !== id && e.toNode !== id)
+        deleted.push(id)
         summary.push(`deleted ${id} (+${before - data.edges.length} edges)`)
         break
       }
@@ -241,7 +245,7 @@ export function applyOps(data: CanvasData, ops: Op[]): OpsResult {
         throw new Error(`unknown op: ${JSON.stringify(op satisfies never)}`)
     }
   }
-  return { summary, created }
+  return { summary, created, deleted }
 }
 
 function mustGet(data: CanvasData, id: string): CanvasNode {

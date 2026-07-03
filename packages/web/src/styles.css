@@ -275,18 +275,59 @@ body {
 
 /* ── handles ── */
 .ps-handle {
-  width: 9px;
-  height: 9px;
+  width: 12px;
+  height: 12px;
   background: var(--accent);
   border: 2px solid #fff;
   opacity: 0;
-  transition: opacity 0.12s ease;
+  transition: opacity 0.12s ease, transform 0.12s ease;
 }
 
 .ps-card:hover .ps-handle,
 .ps-group:hover .ps-handle,
 .is-selected .ps-handle {
   opacity: 1;
+}
+
+.ps-handle:hover {
+  transform: scale(1.5);
+}
+
+/* live feedback while dragging a connection */
+.react-flow__connection-path {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-dasharray: 6 4;
+}
+
+.react-flow__handle.connectingto {
+  background: #e0ac00;
+  transform: scale(1.7);
+  opacity: 1;
+}
+
+.react-flow__handle.valid {
+  background: #08b94e;
+  transform: scale(1.7);
+  opacity: 1;
+}
+
+/* resize controls: easier to grab */
+.react-flow__resize-control.handle {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border-width: 2px;
+}
+
+/* edges: clearer selection + hover */
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke-width: 2.6;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--accent);
+  stroke-width: 2.6;
 }
 
 /* ── markdown ── */
@@ -340,4 +381,19 @@ body {
 .ps-mermaid svg {
   max-width: 100%;
   height: auto;
+}
+
+.ps-mermaid-error {
+  background: #f9ebeb;
+  color: #8f2f2f;
+  border: 1px solid #ecc9c9;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.ps-mermaid pre {
+  font-size: 11px;
+  overflow-x: auto;
 }
