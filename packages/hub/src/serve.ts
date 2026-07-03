@@ -7,6 +7,8 @@ import { diffBoards, isEmptyDiff, type CanvasData } from '@pairsketch/canvas-kit
 import { createBoard, listBoards, readBoard, readBoardRaw, writeBoard } from './boards.ts'
 import { addPinned, getActiveBoard, getPinned, removePinned, setActiveBoard } from './state.ts'
 import { appendEvent, readEventsSince, recentAgentWrite } from './events.ts'
+import { appendChat, readChatSince } from './chat.ts'
+import { createSummoner } from './summon.ts'
 import { applyMutations, type Mutation } from './mutate.ts'
 import { watchRoot } from './watch.ts'
 
@@ -24,6 +26,8 @@ export interface ServeOptions {
   host?: string
   /** when set, /api/* and /ws require `Authorization: Bearer <token>` or `?token=` */
   token?: string
+  /** command template for the handoff button, e.g. 'claude -p {prompt}' */
+  agentCmd?: string
   webDist?: string
 }
 
@@ -41,9 +45,24 @@ const MIME: Record<string, string> = {
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
   '.ico': 'image/x-icon',
   '.map': 'application/json',
   '.woff2': 'font/woff2',
+}
+
+/** Any repo file (for file-node rendering): jailed to the root, no dot segments. */
+function repoFilePath(root: string, rel: string): string {
+  if (rel.split('/').some((segment) => segment.startsWith('.'))) {
+    throw new Error('paths with dot segments are not served')
+  }
+  const abs = path.resolve(root, rel)
+  const rootAbs = path.resolve(root) + path.sep
+  if (!abs.startsWith(rootAbs)) throw new Error(`path escapes the root: "${rel}"`)
+  return abs
 }
 
 export async function startServe(root: string, options: ServeOptions = {}): Promise<RunningServer> {
@@ -122,7 +141,16 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
       void getActiveBoard(root).then((active) => broadcast({ type: 'active_changed', active: active ?? null }))
       return
     }
+    if (signal.type === 'chat') {
+      broadcast({ type: 'chat_changed' })
+      return
+    }
     if (signal.board) void onCanvasChange(signal.board)
+  })
+
+  const summoner = createSummoner(root, {
+    agentCmd: options.agentCmd,
+    onStatus: (status) => broadcast({ type: 'handoff', status }),
   })
 
   const server: Server = createServer((req, res) => {
@@ -200,6 +228,45 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
     if (pathname === '/api/events' && req.method === 'GET') {
       const since = url.searchParams.get('since') ?? undefined
       return sendJson(res, 200, await readEventsSince(root, since))
+    }
+    if (pathname === '/api/chat' && req.method === 'GET') {
+      const since = url.searchParams.get('since') ?? undefined
+      return sendJson(res, 200, await readChatSince(root, since))
+    }
+    if (pathname === '/api/chat' && req.method === 'POST') {
+      const body = (await readJson(req)) as { text?: string; board?: string }
+      if (!body.text || body.text.trim() === '') return sendJson(res, 400, { error: 'missing "text"' })
+      const message = await appendChat(root, { from: 'human', text: body.text.trim(), board: body.board })
+      broadcast({ type: 'chat_changed' })
+      return sendJson(res, 200, { ok: true, id: message.id })
+    }
+    if (pathname === '/api/handoff' && req.method === 'POST') {
+      const body = (await readJson(req)) as { note?: string }
+      if (summoner.running) return sendJson(res, 409, { error: 'an agent turn is already running' })
+      void summoner.handoff(body.note)
+      return sendJson(res, 202, { ok: true })
+    }
+    if (pathname === '/api/file' && req.method === 'GET') {
+      const rel = url.searchParams.get('path')
+      if (!rel) return sendJson(res, 400, { error: 'missing "path"' })
+      let abs: string
+      try {
+        abs = repoFilePath(root, rel)
+      } catch (e) {
+        return sendJson(res, 400, { error: e instanceof Error ? e.message : String(e) })
+      }
+      let buffer: Buffer
+      try {
+        buffer = await readFile(abs)
+      } catch {
+        return sendJson(res, 404, { error: `not found: ${rel}` })
+      }
+      if (url.searchParams.get('raw') === '1') {
+        res.writeHead(200, { 'content-type': MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream' })
+        return void res.end(buffer)
+      }
+      if (buffer.length > 512 * 1024) return sendJson(res, 413, { error: 'file too large to inline' })
+      return sendJson(res, 200, { path: rel, text: buffer.toString('utf8') })
     }
 
     if (req.method === 'GET') return serveStatic(pathname, res)

@@ -53,11 +53,21 @@ export type Mutation =
   | { kind: 'delete_node'; id: string }
   | { kind: 'delete_edge'; id: string }
 
+export interface ChatMessage {
+  id: string
+  ts: string
+  from: 'human' | 'agent'
+  text: string
+  board?: string
+}
+
 export type HubMessage =
   | { type: 'hello'; active: string | null }
   | { type: 'boards_changed' }
   | { type: 'board_changed'; board: string }
   | { type: 'active_changed'; active: string | null }
+  | { type: 'chat_changed' }
+  | { type: 'handoff'; status: 'started' | 'done' | 'error' }
 
 /** Optional access token, taken from ?token= (used when the hub runs with --token over a VPN/LAN). */
 const TOKEN = new URLSearchParams(window.location.search).get('token')
@@ -99,6 +109,26 @@ export const api = {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ board, changes }),
     }).then((r) => json<{ ok: boolean; summary: string[] }>(r)),
+  chat: (since?: string) =>
+    request(`/api/chat${since ? `?since=${encodeURIComponent(since)}` : ''}`).then((r) =>
+      json<{ messages: ChatMessage[]; cursor?: string }>(r),
+    ),
+  postChat: (text: string, board?: string) =>
+    request('/api/chat', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text, board }),
+    }).then((r) => json<{ ok: boolean; id: string }>(r)),
+  handoff: (note?: string) =>
+    request('/api/handoff', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ note }),
+    }).then((r) => json<{ ok: boolean }>(r)),
+  file: (path: string) =>
+    request(`/api/file?path=${encodeURIComponent(path)}`).then((r) => json<{ path: string; text: string }>(r)),
+  fileRawUrl: (path: string) =>
+    `/api/file?path=${encodeURIComponent(path)}&raw=1${TOKEN ? `&token=${encodeURIComponent(TOKEN)}` : ''}`,
 }
 
 /** Auto-reconnecting hub socket. Returns a cleanup function. */

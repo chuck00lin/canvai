@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, connectHub, type BoardInfo } from './api'
 import { CanvasBoard } from './board/CanvasBoard'
+import { ChatPanel } from './ChatPanel'
 
 export function App() {
   const [boards, setBoards] = useState<BoardInfo[]>([])
   const [active, setActive] = useState<string | null>(null)
   const [current, setCurrent] = useState<string | null>(null)
   const [changeSignal, setChangeSignal] = useState(0)
+  const [chatSignal, setChatSignal] = useState(0)
+  const [agentBusy, setAgentBusy] = useState(false)
   const [offline, setOffline] = useState(false)
   const currentRef = useRef<string | null>(null)
   currentRef.current = current
@@ -35,6 +38,8 @@ export function App() {
         // the active board is the shared focus — follow it
         if (message.active) setCurrent(message.active)
       }
+      if (message.type === 'chat_changed') setChatSignal((n) => n + 1)
+      if (message.type === 'handoff') setAgentBusy(message.status === 'started')
     })
   }, [refreshBoards])
 
@@ -105,6 +110,7 @@ export function App() {
           <div className="ps-placeholder">create a board to start sketching with your agent</div>
         )}
       </main>
+      <ChatPanel signal={chatSignal} agentBusy={agentBusy} />
     </div>
   )
 }

@@ -1,5 +1,6 @@
-import { useContext, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { useContext, useEffect, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { Handle, NodeResizer, Position, type NodeProps, type NodeTypes } from '@xyflow/react'
+import { api } from '../api'
 import { BoardActions } from './actions'
 import { colorOf, type PSFlowNode } from './mapping'
 import { Markdown } from '../markdown'
@@ -98,19 +99,50 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   )
 }
 
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'])
+const TEXT_EXTS = new Set(['md', 'markdown', 'txt'])
+
 function FileNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   const { commitGeometry } = useContext(BoardActions)
   const node = data.node
+  const file = node.file ?? ''
+  const ext = file.split('.').pop()?.toLowerCase() ?? ''
+  const [content, setContent] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!TEXT_EXTS.has(ext)) return
+    let cancelled = false
+    api
+      .file(file)
+      .then((r) => {
+        if (!cancelled) setContent(r.text)
+      })
+      .catch((e) => {
+        if (!cancelled) setLoadError(e instanceof Error ? e.message : String(e))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [file, ext])
+
   return (
     <div className={`ps-card ps-file${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)}>
       <NodeResizer isVisible={!!selected} minWidth={120} minHeight={40} onResizeEnd={(_, p) => commitGeometry(id, p)} />
       <Sides />
       <Pin pinned={data.pinned} />
-      <span className="ps-file-icon">📄</span>
-      <span className="ps-file-path">
-        {node.file}
-        {typeof node.subpath === 'string' ? node.subpath : ''}
-      </span>
+      <div className="ps-file-head">
+        <span className="ps-file-icon">📄</span>
+        <span className="ps-file-path">
+          {file}
+          {typeof node.subpath === 'string' ? node.subpath : ''}
+        </span>
+      </div>
+      <div className="ps-file-body nowheel">
+        {IMAGE_EXTS.has(ext) && <img src={api.fileRawUrl(file)} alt={file} />}
+        {TEXT_EXTS.has(ext) && content !== null && <Markdown text={content} />}
+        {loadError && <div className="ps-file-error">{loadError}</div>}
+      </div>
     </div>
   )
 }

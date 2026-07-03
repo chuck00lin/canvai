@@ -10,6 +10,7 @@ import {
 import { createBoard, listBoards, readBoard, readBoardRaw, writeBoard } from './boards.ts'
 import { getActiveBoard, getPinned, removePinned, setActiveBoard } from './state.ts'
 import { appendEvent, readEventsSince, type HubEvent } from './events.ts'
+import { appendChat, readChatSince } from './chat.ts'
 
 const dirEnum = z.enum(['right', 'below', 'left', 'above'])
 
@@ -72,6 +73,24 @@ const fail = (e: unknown): ToolResult => ({
   content: [{ type: 'text', text: `error: ${e instanceof Error ? e.message : String(e)}` }],
   isError: true,
 })
+
+/**
+ * A human dragging one card produces a burst of near-identical events;
+ * collapse consecutive runs (same origin/board/first summary word + node)
+ * into one line with a ×count — pure token savings for agents.
+ */
+function coalesceEvents(events: HubEvent[]): { event: HubEvent; count: number }[] {
+  const out: { event: HubEvent; count: number; key: string }[] = []
+  for (const event of events) {
+    const summary = Array.isArray(event.detail?.summary) ? (event.detail.summary as string[]) : []
+    const key =
+      summary.length === 1 ? `${event.origin}|${event.board}|${event.kind}|${summary[0]}` : `unique|${event.id}`
+    const last = out.at(-1)
+    if (last && last.key === key) last.count += 1
+    else out.push({ event, count: 1, key })
+  }
+  return out
+}
 
 function formatEvent(event: HubEvent): string {
   const time = event.ts.slice(11, 19)
@@ -282,8 +301,47 @@ export function createHubServer(root: string): McpServer {
       try {
         const { events, cursor: next } = await readEventsSince(root, cursor)
         if (events.length === 0) return text(cursor ? `no new events\ncursor: ${cursor}` : 'no events yet')
-        const lines = events.map(formatEvent)
+        const lines = coalesceEvents(events).map(({ event, count }) => formatEvent(event) + (count > 1 ? ` ×${count}` : ''))
         lines.push(`cursor: ${next}`)
+        return text(lines.join('\n'))
+      } catch (e) {
+        return fail(e)
+      }
+    },
+  )
+
+  server.registerTool(
+    'post_chat',
+    {
+      title: 'Post to chat',
+      description:
+        'Reply in the text side-channel (the chat panel next to the board). Use this for prose — not every reply ' +
+        'deserves a card. Use apply_ops when the reply is structural or spatial.',
+      inputSchema: { text: z.string().min(1), board: z.string().optional() },
+    },
+    async ({ text: message, board }) => {
+      try {
+        await appendChat(root, { from: 'agent', text: message, board })
+        return text('posted')
+      } catch (e) {
+        return fail(e)
+      }
+    },
+  )
+
+  server.registerTool(
+    'read_chat',
+    {
+      title: 'Read chat',
+      description: 'Read the text side-channel. Pass the cursor from your previous call to get only new messages.',
+      inputSchema: { since: z.string().optional() },
+    },
+    async ({ since }) => {
+      try {
+        const { messages, cursor } = await readChatSince(root, since)
+        if (messages.length === 0) return text(since ? `no new messages\ncursor: ${since}` : 'no messages yet')
+        const lines = messages.map((m) => `${m.from} (${m.ts.slice(11, 16)}): ${m.text}`)
+        lines.push(`cursor: ${cursor}`)
         return text(lines.join('\n'))
       } catch (e) {
         return fail(e)

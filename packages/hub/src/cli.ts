@@ -21,6 +21,8 @@ options:
   --host <addr>    bind address (default: 127.0.0.1 — local only).
                    Use 0.0.0.0 to reach it over a VPN/LAN; pair it with --token.
   --token <secret> require a bearer token (or ?token=) on /api and /ws
+  --agent-cmd <t>  command for the handoff button; {prompt} is replaced
+                   (default: 'claude -p --mcp-config .mcp.json --allowedTools mcp__pairsketch {prompt}')
 
 Both modes coordinate through files (.canvas, .pairsketch/) — run them
 side by side, or either one alone.`)
@@ -54,7 +56,8 @@ if (args[0] === 'serve') {
   const port = Number(flag('--port') ?? 5199)
   const host = flag('--host') ?? '127.0.0.1'
   const token = flag('--token')
-  const running = await startServe(root, { port, host, token })
+  const agentCmd = flag('--agent-cmd')
+  const running = await startServe(root, { port, host, token, agentCmd })
   console.error(`pairsketch hub: serving ${root}`)
   const suffix = token ? `/?token=${encodeURIComponent(token)}` : '/'
   for (const address of host === '0.0.0.0' ? reachableAddresses() : [host]) {

@@ -8,7 +8,7 @@ import path from 'node:path'
  */
 
 export interface WatchSignal {
-  type: 'canvas' | 'state'
+  type: 'canvas' | 'state' | 'chat'
   /** repo-relative board path for type=canvas */
   board?: string
 }
@@ -40,6 +40,10 @@ export function watchRoot(root: string, onSignal: (signal: WatchSignal) => void)
     const base = segments.at(-1) ?? ''
     if (rel === '.pairsketch/state.json') {
       schedule('state', { type: 'state' })
+      return
+    }
+    if (rel === '.pairsketch/chat.jsonl') {
+      schedule('chat', { type: 'chat' })
       return
     }
     // ignore dotted dirs (.git, .obsidian, .pairsketch) and our tmp files
