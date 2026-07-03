@@ -28,6 +28,13 @@ export interface ServeOptions {
   token?: string
   /** command template for the handoff button, e.g. 'claude -p {prompt}' */
   agentCmd?: string
+  /**
+   * 'spawn' (default): the handoff button spawns a fresh agent turn.
+   * 'signal': only broadcast handoff_requested over the WebSocket — for when
+   * a long-running main session is attached (e.g. via a ws monitor) and
+   * should answer with its full context instead of a stateless turn.
+   */
+  handoffMode?: 'spawn' | 'signal'
   webDist?: string
 }
 
@@ -242,9 +249,18 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
     }
     if (pathname === '/api/handoff' && req.method === 'POST') {
       const body = (await readJson(req)) as { note?: string }
+      let note = body.note
+      if (!note) {
+        const { messages } = await readChatSince(root)
+        note = messages.filter((m) => m.from === 'human').at(-1)?.text
+      }
+      broadcast({ type: 'handoff_requested', note: note ?? null })
+      if ((options.handoffMode ?? 'spawn') === 'signal') {
+        return sendJson(res, 202, { ok: true, mode: 'signal' })
+      }
       if (summoner.running) return sendJson(res, 409, { error: 'an agent turn is already running' })
       void summoner.handoff(body.note)
-      return sendJson(res, 202, { ok: true })
+      return sendJson(res, 202, { ok: true, mode: 'spawn' })
     }
     if (pathname === '/api/file' && req.method === 'GET') {
       const rel = url.searchParams.get('path')

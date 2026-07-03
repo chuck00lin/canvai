@@ -5,6 +5,7 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import WebSocket from 'ws'
 import { startServe, type RunningServer } from '../src/serve.ts'
 import { createHubServer } from '../src/server.ts'
 
@@ -17,12 +18,12 @@ afterEach(async () => {
   running = undefined
 })
 
-async function setup(agentCmd?: string) {
+async function setup(agentCmd?: string, handoffMode?: 'spawn' | 'signal') {
   const root = await mkdtemp(path.join(tmpdir(), 'pairsketch-chat-'))
   await mkdir(path.join(root, 'discuss'), { recursive: true })
   await writeFile(path.join(root, 'discuss', 'demo.canvas'), FIXTURE, 'utf8')
-  running = await startServe(root, { port: 0, agentCmd })
-  return { root, base: `http://127.0.0.1:${running.port}` }
+  running = await startServe(root, { port: 0, agentCmd, handoffMode })
+  return { root, base: `http://127.0.0.1:${running.port}`, port: running.port }
 }
 
 async function until(check: () => Promise<boolean>, timeoutMs = 8000): Promise<void> {
@@ -128,5 +129,37 @@ describe('chat side-channel', () => {
     const prompt = await readFile(path.join(root, 'received-stdin.txt'), 'utf8')
     expect(prompt).toContain('summoned')
     expect(prompt).toContain('Token discipline')
+  })
+
+  it('signal mode broadcasts handoff_requested to the main session instead of spawning', async () => {
+    const { base, port } = await setup(undefined, 'signal')
+
+    const frames: { type: string; note?: string | null }[] = []
+    const socket = new WebSocket(`ws://127.0.0.1:${port}/ws`)
+    socket.on('message', (data) => frames.push(JSON.parse(String(data))))
+    await new Promise<void>((resolve) => socket.once('open', () => resolve()))
+
+    await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: '我在板上改了東西，來看看' }),
+    })
+    const response = await fetch(`${base}/api/handoff`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    expect(((await response.json()) as { mode: string }).mode).toBe('signal')
+
+    await until(async () => frames.some((f) => f.type === 'handoff_requested'))
+    const signal = frames.find((f) => f.type === 'handoff_requested')!
+    expect(signal.note).toContain('我在板上改了東西')
+
+    // no agent was spawned: chat still only has the human message
+    await sleep(300)
+    const list = (await (await fetch(`${base}/api/chat`)).json()) as { messages: { from: string }[] }
+    expect(list.messages.every((m) => m.from === 'human')).toBe(true)
+
+    socket.close()
   })
 })

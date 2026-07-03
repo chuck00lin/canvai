@@ -24,6 +24,9 @@ options:
   --agent-cmd <t>  command for the handoff button; the prompt is piped to
                    stdin, or replaces a {prompt} placeholder if present
                    (default: 'claude -p --mcp-config .mcp.json --allowedTools mcp__pairsketch')
+  --handoff-mode <m>  'spawn' (default) runs a fresh agent turn per handoff;
+                   'signal' only broadcasts handoff_requested on /ws, for a
+                   long-running session listening with its own context
 
 Both modes coordinate through files (.canvas, .pairsketch/) — run them
 side by side, or either one alone.`)
@@ -58,7 +61,8 @@ if (args[0] === 'serve') {
   const host = flag('--host') ?? '127.0.0.1'
   const token = flag('--token')
   const agentCmd = flag('--agent-cmd')
-  const running = await startServe(root, { port, host, token, agentCmd })
+  const handoffMode = flag('--handoff-mode') === 'signal' ? ('signal' as const) : undefined
+  const running = await startServe(root, { port, host, token, agentCmd, handoffMode })
   console.error(`pairsketch hub: serving ${root}`)
   const suffix = token ? `/?token=${encodeURIComponent(token)}` : '/'
   for (const address of host === '0.0.0.0' ? reachableAddresses() : [host]) {
