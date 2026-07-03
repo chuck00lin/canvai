@@ -20,7 +20,10 @@ import { watchRoot } from './watch.ts'
 
 export interface ServeOptions {
   port?: number
+  /** default 127.0.0.1; set 0.0.0.0 (with a token!) to reach it over a VPN/LAN */
   host?: string
+  /** when set, /api/* and /ws require `Authorization: Bearer <token>` or `?token=` */
+  token?: string
   webDist?: string
 }
 
@@ -128,9 +131,19 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
     })
   })
 
+  const authorized = (req: IncomingMessage, url: URL): boolean => {
+    if (!options.token) return true
+    if (req.headers.authorization === `Bearer ${options.token}`) return true
+    return url.searchParams.get('token') === options.token
+  }
+
   async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', 'http://localhost')
     const { pathname } = url
+
+    if (pathname.startsWith('/api') && !authorized(req, url)) {
+      return sendJson(res, 401, { error: 'unauthorized — pass ?token= or an Authorization: Bearer header' })
+    }
 
     if (pathname === '/api/boards' && req.method === 'GET') {
       const [boards, active] = await Promise.all([listBoards(root), getActiveBoard(root)])
@@ -219,7 +232,11 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
   }
 
   const wss = new WebSocketServer({ server, path: '/ws' })
-  wss.on('connection', (socket) => {
+  wss.on('connection', (socket, req) => {
+    if (!authorized(req, new URL(req.url ?? '/', 'http://localhost'))) {
+      socket.close(4401, 'unauthorized')
+      return
+    }
     wssClients.add(socket)
     socket.on('close', () => wssClients.delete(socket))
     void (async () => {

@@ -44,6 +44,15 @@ npm run serve                # http://127.0.0.1:5199 — or: node .../packages/h
 
 Open the URL next to your agent session. Agent edits appear in the browser as they happen (file watcher → WebSocket). Drag a card and it is **pinned**: `auto_layout` flows around it, and the agent sees your move in `events_since`. Double-click cards to edit markdown (``` ```mermaid ``` fences render as diagrams), draw edges from the side handles, tick a board **active** in the sidebar to point every agent at it. The MCP process and the serve process coordinate purely through files — run either one alone, or both.
 
+**Remote / same-VPN access.** The hub binds `127.0.0.1` by default. To open a board from another machine on your VPN or LAN:
+
+```bash
+npm run serve -- --host 0.0.0.0 --token choose-a-secret
+# from the remote machine: http://<this-machine's VPN IP>:5199/?token=choose-a-secret
+```
+
+The token guards `/api` and `/ws` (the static shell carries no data); the CLI prints every reachable address on startup and warns if you expose without a token. Prefer zero flags? An SSH tunnel also works: `ssh -L 5199:127.0.0.1:5199 <host>`, then open `http://127.0.0.1:5199` locally.
+
 ## The core idea
 
 Diagrams have two possible sources of truth, and the split maps exactly onto who is good at what:

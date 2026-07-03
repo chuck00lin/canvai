@@ -31,11 +31,11 @@ afterEach(async () => {
   running = undefined
 })
 
-async function setup() {
+async function setup(options: { token?: string } = {}) {
   const root = await mkdtemp(path.join(tmpdir(), 'pairsketch-serve-'))
   await mkdir(path.join(root, 'discuss'), { recursive: true })
   await writeFile(path.join(root, 'discuss', 'demo.canvas'), FIXTURE, 'utf8')
-  running = await startServe(root, { port: 0 })
+  running = await startServe(root, { port: 0, ...options })
   return { root, base: `http://127.0.0.1:${running.port}`, port: running.port }
 }
 
@@ -111,5 +111,24 @@ describe('pairsketch hub serve mode', () => {
     expect(events.events.some((e) => e.origin === 'external' && e.kind === 'board_changed')).toBe(true)
 
     socket.close()
+  })
+
+  it('enforces the bearer token on /api and /ws when configured', async () => {
+    const { base, port } = await setup({ token: 'sekret' })
+
+    expect((await fetch(`${base}/api/boards`)).status).toBe(401)
+    expect((await fetch(`${base}/api/boards`, { headers: { authorization: 'Bearer sekret' } })).status).toBe(200)
+    expect((await fetch(`${base}/api/boards?token=sekret`)).status).toBe(200)
+    // the static shell carries no data and stays open
+    expect((await fetch(`${base}/`)).status).toBe(200)
+
+    const rejected = new WebSocket(`ws://127.0.0.1:${port}/ws`)
+    const closeCode = await new Promise<number>((resolve) => rejected.once('close', (code) => resolve(code)))
+    expect(closeCode).toBe(4401)
+
+    const accepted = new WebSocket(`ws://127.0.0.1:${port}/ws?token=sekret`)
+    const first = await new Promise<string>((resolve) => accepted.once('message', (data) => resolve(String(data))))
+    expect((JSON.parse(first) as { type: string }).type).toBe('hello')
+    accepted.close()
   })
 })

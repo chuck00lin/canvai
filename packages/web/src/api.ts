@@ -59,6 +59,14 @@ export type HubMessage =
   | { type: 'board_changed'; board: string }
   | { type: 'active_changed'; active: string | null }
 
+/** Optional access token, taken from ?token= (used when the hub runs with --token over a VPN/LAN). */
+const TOKEN = new URLSearchParams(window.location.search).get('token')
+
+function request(input: string, init?: RequestInit): Promise<Response> {
+  if (!TOKEN) return fetch(input, init)
+  return fetch(input, { ...init, headers: { ...(init?.headers ?? {}), authorization: `Bearer ${TOKEN}` } })
+}
+
 async function json<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: string }
@@ -68,25 +76,25 @@ async function json<T>(response: Response): Promise<T> {
 }
 
 export const api = {
-  boards: () => fetch('/api/boards').then((r) => json<{ boards: BoardInfo[]; active: string | null }>(r)),
+  boards: () => request('/api/boards').then((r) => json<{ boards: BoardInfo[]; active: string | null }>(r)),
   board: (path: string) =>
-    fetch(`/api/board?path=${encodeURIComponent(path)}`).then((r) =>
+    request(`/api/board?path=${encodeURIComponent(path)}`).then((r) =>
       json<{ path: string; data: CanvasData; pinned: string[] }>(r),
     ),
   createBoard: (path: string) =>
-    fetch('/api/boards', {
+    request('/api/boards', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ path }),
     }).then((r) => json<{ ok: boolean }>(r)),
   setActive: (board: string) =>
-    fetch('/api/active', {
+    request('/api/active', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ board }),
     }).then((r) => json<{ ok: boolean }>(r)),
   mutate: (board: string, changes: Mutation[]) =>
-    fetch('/api/mutate', {
+    request('/api/mutate', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ board, changes }),
@@ -102,7 +110,8 @@ export function connectHub(onMessage: (message: HubMessage) => void): () => void
   const open = () => {
     if (closed) return
     const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
-    socket = new WebSocket(`${protocol}://${location.host}/ws`)
+    const auth = TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : ''
+    socket = new WebSocket(`${protocol}://${location.host}/ws${auth}`)
     socket.onmessage = (event) => {
       try {
         onMessage(JSON.parse(String(event.data)) as HubMessage)
