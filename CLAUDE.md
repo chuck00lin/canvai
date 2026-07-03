@@ -17,7 +17,8 @@ Repo-native visual discussion boards for humans + AI agents. JSON Canvas files a
 
 ## Status & layout
 
-- Current phase: **Phase 0 shipped** — `packages/canvas-kit` (round-trip io, projection, ops, ELK layout) + `packages/hub` (MCP stdio server). `packages/web` (React Flow client) arrives with Phase 1. Next: measure the token bill of a real discussion turn, then Phase 1.
-- No build step: Node ≥ 23.6 runs the TypeScript directly (erasable syntax only — no enums/namespaces; relative imports use `.ts` extensions). `npm test` (vitest, includes an MCP e2e loop) and `npx tsc --noEmit` must stay green.
+- Current phase: **Phase 0 + Phase 1 core shipped** — `packages/canvas-kit` (round-trip io, projection, ops, diff, pinned-aware ELK layout), `packages/hub` (MCP stdio server + `serve` mode: watcher/WebSocket/REST), `packages/web` (React Flow client; Vite build, needs DOM lib so it has its own tsconfig and is excluded from the root one). The two hub processes coordinate purely through files (`.canvas`, `.pairsketch/state.json`, `.pairsketch/events.jsonl`). Next: field-test the live loop, measure the token bill of a real discussion turn, then Phase 2 (Yjs, presence, mermaid explode, @agent pins).
+- No build step for hub/kit: Node ≥ 23.6 runs the TypeScript directly (erasable syntax only — no enums/namespaces; relative imports use `.ts` extensions). Web builds with `npm run web:build`. `npm test` (vitest, includes MCP + serve e2e) and `npm run typecheck` must stay green.
+- Dev commands: `npm run serve` (HTTP/WS on 5199), `npm run web:dev` (Vite dev server proxying to 5199), `npm run hub` (MCP stdio).
 - Dogfooding: `.mcp.json` registers the hub for this repo; `discuss/roadmap.canvas` is a live board — feel free to update it via apply_ops when the roadmap changes.
 - License MIT. Do not vendor code from GPL projects (notably obsidian-advanced-canvas); format compatibility only.

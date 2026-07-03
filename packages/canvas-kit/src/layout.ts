@@ -1,18 +1,24 @@
 import ELK from 'elkjs/lib/elk.bundled.js'
 import type { CanvasData, CanvasNode } from './types.ts'
 import { nodes, edges } from './types.ts'
-import { rectOf, contains, bbox } from './geometry.ts'
+import { rectOf, contains, bbox, overlaps } from './geometry.ts'
 
 export interface LayoutOptions {
   direction?: 'RIGHT' | 'DOWN' | 'LEFT' | 'UP'
   spacing?: number
+  /**
+   * Node ids a human has arranged by hand. Pinned blocks (and groups
+   * containing a pinned member) do not move; the laid-out remainder is
+   * shifted until it clears them.
+   */
+  pinned?: ReadonlySet<string>
 }
 
 /**
  * Full-board ELK layered layout. Groups are treated as opaque blocks: the
  * group moves, its members ride along with the same delta, so arrangements
- * humans made inside a group survive. (Pinned-node-aware incremental layout
- * is a Phase 1 refinement — see design doc, "Risks".)
+ * humans made inside a group survive. Pinned blocks are excluded from the
+ * layout entirely and the laid-out region slides until it clears them.
  */
 export async function autoLayout(data: CanvasData, options: LayoutOptions = {}): Promise<void> {
   const ns = nodes(data)
@@ -43,12 +49,25 @@ export async function autoLayout(data: CanvasData, options: LayoutOptions = {}):
     blockOf.set(n.id, current.id)
   }
 
+  // a block is pinned when the human arranged it (or anything inside it) by hand
+  const pinned = options.pinned ?? new Set<string>()
+  const isPinnedBlock = (block: CanvasNode): boolean => {
+    if (pinned.has(block.id)) return true
+    if (block.type !== 'group') return false
+    return ns.some((n) => n.id !== block.id && pinned.has(n.id) && contains(rectOf(block), rectOf(n)))
+  }
+  const freeBlocks = blocks.filter((b) => !isPinnedBlock(b))
+  const pinnedRects = blocks.filter((b) => isPinnedBlock(b)).map(rectOf)
+  if (freeBlocks.length === 0) return
+  const freeIds = new Set(freeBlocks.map((b) => b.id))
+
   const elkEdges = []
   const seen = new Set<string>()
   for (const e of edges(data)) {
     const source = blockOf.get(e.fromNode)
     const target = blockOf.get(e.toNode)
     if (!source || !target || source === target) continue
+    if (!freeIds.has(source) || !freeIds.has(target)) continue
     const key = `${source}->${target}`
     if (seen.has(key)) continue
     seen.add(key)
@@ -64,16 +83,31 @@ export async function autoLayout(data: CanvasData, options: LayoutOptions = {}):
       'elk.spacing.nodeNode': String(spacing),
       'elk.layered.spacing.nodeNodeBetweenLayers': String(spacing + 40),
     },
-    children: blocks.map((n) => ({ id: n.id, width: n.width, height: n.height })),
+    children: freeBlocks.map((n) => ({ id: n.id, width: n.width, height: n.height })),
     edges: elkEdges,
   })
 
   // keep the board anchored where it was, so viewports don't jump
-  const before = bbox(blocks.map(rectOf))
+  const before = bbox(freeBlocks.map(rectOf))
   const placed = result.children ?? []
-  const after = bbox(placed.map((c) => ({ x: c.x ?? 0, y: c.y ?? 0, width: c.width ?? 0, height: c.height ?? 0 })))
-  const offsetX = before.x - after.x
-  const offsetY = before.y - after.y
+  const placedRect = (c: (typeof placed)[number]) => ({
+    x: c.x ?? 0,
+    y: c.y ?? 0,
+    width: c.width ?? 0,
+    height: c.height ?? 0,
+  })
+  const after = bbox(placed.map(placedRect))
+  let offsetX = before.x - after.x
+  let offsetY = before.y - after.y
+
+  // slide the laid-out region down until it clears every pinned block
+  for (let i = 0; i < 200; i++) {
+    const collides = placed.some((c) =>
+      pinnedRects.some((p) => overlaps({ ...placedRect(c), x: (c.x ?? 0) + offsetX, y: (c.y ?? 0) + offsetY }, p, spacing / 2)),
+    )
+    if (!collides) break
+    offsetY += 48
+  }
 
   for (const child of placed) {
     const block = ns.find((n) => n.id === child.id)

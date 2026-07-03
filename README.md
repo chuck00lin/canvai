@@ -4,7 +4,7 @@
 
 Terminals are a narrow pipe for visual thinkers, and today it is the only pipe we share with our agents. pairsketch gives any repository a shared whiteboard — like Miro or FigJam, except the participants include AI agents. Humans drag cards around in a browser (or in Obsidian); agents read and edit the same boards through MCP. The boards are plain [JSON Canvas](https://jsoncanvas.org) files living in your repo, versioned by git like everything else.
 
-> **Status: Phase 0 shipped, protocol still soft.** The MCP hub and the canvas library work today (see Quickstart); the web client is Phase 1. We are collecting real-world use cases before freezing the protocol. **If you have ever wished you could discuss architecture with an agent on a whiteboard instead of a terminal, [tell us about it](.github/ISSUE_TEMPLATE/use-case.yml)** — early requirements shape this project the most.
+> **Status: Phase 0 + Phase 1 core shipped, protocol still soft.** The MCP hub, the canvas library, and a live web client (watcher + WebSocket + React Flow) work today — see Quickstart. We are collecting real-world use cases before freezing the protocol. **If you have ever wished you could discuss architecture with an agent on a whiteboard instead of a terminal, [tell us about it](.github/ISSUE_TEMPLATE/use-case.yml)** — early requirements shape this project the most.
 
 ## Quickstart (Phase 0: agent + Obsidian, no frontend)
 
@@ -34,6 +34,15 @@ Open the repo folder as (or inside) an Obsidian vault, then ask your agent somet
 > create a board `discuss/architecture.canvas`, set it active, and sketch our module structure on it
 
 Cards appear in Obsidian as the agent works; drag them around, and the agent picks your arrangement up on its next read. This very repo dogfoods the loop: [`discuss/roadmap.canvas`](discuss/roadmap.canvas) was drawn by the hub itself.
+
+### The live loop (Phase 1): browser instead of / next to Obsidian
+
+```bash
+npm run web:build            # once, builds the React Flow client
+npm run serve                # http://127.0.0.1:5199 — or: node .../packages/hub/src/cli.ts serve --root <your repo>
+```
+
+Open the URL next to your agent session. Agent edits appear in the browser as they happen (file watcher → WebSocket). Drag a card and it is **pinned**: `auto_layout` flows around it, and the agent sees your move in `events_since`. Double-click cards to edit markdown (``` ```mermaid ``` fences render as diagrams), draw edges from the side handles, tick a board **active** in the sidebar to point every agent at it. The MCP process and the serve process coordinate purely through files — run either one alone, or both.
 
 ## The core idea
 
@@ -86,14 +95,14 @@ Every layer can fail independently: kill the server and humans still open boards
 | `list_boards` / `get_active_board` / `set_active_board` / `create_board` | discover boards; share one focus between human and agent | O(boards) | ✅ Phase 0 |
 | `read_board(mode)` | `structure` (default, coordinate-free) · `full` | structure ≈ ⅓ of full | ✅ Phase 0 |
 | `apply_ops([...])` | atomic batch of semantic edits: add / update / delete / connect / group / relative move, with `$ref` chaining | O(change) | ✅ Phase 0 |
-| `auto_layout` | ELK layered pass; groups move as blocks | O(1) call | ✅ Phase 0 |
+| `auto_layout` | ELK layered pass; pinned (human-arranged) nodes stay put, groups move as blocks | O(1) call | ✅ Phase 0 |
+| `events_since(cursor)` | what humans did since last sync: web edits, Obsidian edits, other agents | O(diff) | ✅ Phase 1 |
 | `insert_mermaid(text)` | Mermaid → parse → ELK layout → canvas nodes | structure price, positions free | Phase 2 |
-| `events_since(cursor)` | what humans did since last sync (moves, new cards, pins) | O(diff) | Phase 1 |
 
 ## Roadmap
 
 - **Phase 0 — zero frontend.** ✅ shipped. MCP server + `.canvas` files + Obsidian as the viewer. Validates that discussing *on a board* beats discussing in a terminal, and measures real token costs. Turn-based collaboration.
-- **Phase 1 — own client.** The thin local server (watcher + WebSocket + atomic writes that preserve unknown fields) and a React Flow editor with the active-board loop. Agent edits appear live in the browser.
+- **Phase 1 — own client.** ✅ core shipped. The thin local server (watcher + WebSocket + atomic writes that preserve unknown fields) and a React Flow editor with the active-board loop. Agent edits appear live in the browser; human drags pin nodes and surface in `events_since`.
 - **Phase 2 — real-time.** CRDT document layer (Yjs), presence (human and agent cursors), Mermaid import-explode, the `@agent` pin protocol, multi-board portals.
 
 **Non-goals:** an interactive Mermaid engine (the language has no position vocabulary — see the [design doc](docs/design.md#decision-2) for why every attempt converges back to a canvas); a cloud service (local-first, your repo is the backend); real-time CRDT before turn-based collaboration proves itself.

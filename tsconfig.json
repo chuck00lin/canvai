@@ -16,5 +16,6 @@
       "@pairsketch/canvas-kit": ["./packages/canvas-kit/src/index.ts"]
     }
   },
-  "include": ["packages/*/src/**/*.ts", "packages/*/test/**/*.ts"]
+  "include": ["packages/*/src/**/*.ts", "packages/*/test/**/*.ts"],
+  "exclude": ["packages/web"]
 }

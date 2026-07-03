@@ -8,7 +8,8 @@ import {
   type Op,
 } from '@pairsketch/canvas-kit'
 import { createBoard, listBoards, readBoard, readBoardRaw, writeBoard } from './boards.ts'
-import { getActiveBoard, setActiveBoard } from './state.ts'
+import { getActiveBoard, getPinned, setActiveBoard } from './state.ts'
+import { appendEvent, readEventsSince, type HubEvent } from './events.ts'
 
 const dirEnum = z.enum(['right', 'below', 'left', 'above'])
 
@@ -72,6 +73,19 @@ const fail = (e: unknown): ToolResult => ({
   isError: true,
 })
 
+function formatEvent(event: HubEvent): string {
+  const time = event.ts.slice(11, 19)
+  const board = event.board ? ` ${event.board}` : ''
+  let detail = ''
+  if (event.detail) {
+    const parts = Object.entries(event.detail).map(([key, value]) =>
+      Array.isArray(value) ? `${key}: ${value.length <= 4 ? value.join(', ') : value.length}` : `${key}: ${String(value)}`,
+    )
+    if (parts.length > 0) detail = ` — ${parts.join('; ')}`
+  }
+  return `[${event.origin}] ${time} ${event.kind}${board}${detail}`
+}
+
 export function createHubServer(root: string): McpServer {
   const server = new McpServer({ name: 'pairsketch-hub', version: '0.1.0' })
 
@@ -115,6 +129,7 @@ export function createHubServer(root: string): McpServer {
     async ({ path: rel }) => {
       try {
         await createBoard(root, rel)
+        await appendEvent(root, { origin: 'agent', kind: 'board_created', board: rel })
         return text(`created ${rel}`)
       } catch (e) {
         return fail(e)
@@ -133,6 +148,7 @@ export function createHubServer(root: string): McpServer {
       try {
         await readBoardRaw(root, board) // verify it exists
         await setActiveBoard(root, board)
+        await appendEvent(root, { origin: 'agent', kind: 'active_changed', board })
         return text(`active board: ${board}`)
       } catch (e) {
         return fail(e)
@@ -211,6 +227,7 @@ export function createHubServer(root: string): McpServer {
         const working = structuredClone(data) as CanvasData
         const result = applyOps(working, ops as Op[])
         await writeBoard(root, rel, working, style)
+        await appendEvent(root, { origin: 'agent', kind: 'ops_applied', board: rel, detail: { summary: result.summary } })
         const created = Object.entries(result.created)
           .filter(([k]) => !/^\$\d+$/.test(k))
           .map(([k, v]) => `${k} = ${v}`)
@@ -228,8 +245,8 @@ export function createHubServer(root: string): McpServer {
     {
       title: 'Auto-layout board',
       description:
-        'Run ELK layered layout over the whole board (groups move as blocks; arrangements inside groups survive). ' +
-        'Use after larger edits; prefer anchors for small additions.',
+        'Run ELK layered layout over the board. Human-arranged (pinned) nodes do not move — the rest flows around ' +
+        'them; groups move as blocks. Use after larger edits; prefer anchors for small additions.',
       inputSchema: {
         board: z.string().optional(),
         direction: z.enum(['RIGHT', 'DOWN', 'LEFT', 'UP']).optional(),
@@ -240,9 +257,33 @@ export function createHubServer(root: string): McpServer {
         const rel = await resolveBoard(board)
         const { data, style } = await readBoard(root, rel)
         const working = structuredClone(data) as CanvasData
-        await autoLayout(working, { direction })
+        const pinned = await getPinned(root, rel)
+        await autoLayout(working, { direction, pinned })
         await writeBoard(root, rel, working, style)
-        return text(`re-laid out ${rel}`)
+        await appendEvent(root, { origin: 'agent', kind: 'layout', board: rel })
+        return text(`re-laid out ${rel}${pinned.size > 0 ? ` (respected ${pinned.size} pinned nodes)` : ''}`)
+      } catch (e) {
+        return fail(e)
+      }
+    },
+  )
+
+  server.registerTool(
+    'events_since',
+    {
+      title: 'Events since cursor',
+      description:
+        'What happened on the boards since your last sync: human edits from the web client, Obsidian edits spotted ' +
+        'by the watcher, and other agents. Pass the cursor from your previous call; omit it for the recent history.',
+      inputSchema: { cursor: z.string().optional() },
+    },
+    async ({ cursor }) => {
+      try {
+        const { events, cursor: next } = await readEventsSince(root, cursor)
+        if (events.length === 0) return text(cursor ? `no new events\ncursor: ${cursor}` : 'no events yet')
+        const lines = events.map(formatEvent)
+        lines.push(`cursor: ${next}`)
+        return text(lines.join('\n'))
       } catch (e) {
         return fail(e)
       }

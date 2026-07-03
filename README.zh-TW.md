@@ -4,7 +4,7 @@
 
 Terminal 對視覺化思考者是一條太窄的管道。pairsketch 讓任何 repo 擁有一個共享白板——像 Miro / FigJam，但參與者包含 AI agent。人類在瀏覽器（或 Obsidian）裡拖拉卡片；agent 透過 MCP 讀寫同一塊板。板子就是 repo 裡的 [JSON Canvas](https://jsoncanvas.org) 純文字檔，跟程式碼一起被 git 版控。
 
-> **目前狀態：Phase 0 已出貨，協定仍在收斂。** MCP hub 與 canvas 函式庫今天就能用（見英文版 README 的 Quickstart）；web 端是 Phase 1。我們正在收集真實使用情境來定協定。**如果你曾希望能跟 agent 在白板上而不是 terminal 裡討論架構，[告訴我們你的情境](.github/ISSUE_TEMPLATE/use-case.yml)**——早期的需求對這個專案影響最大。
+> **目前狀態：Phase 0＋Phase 1 核心已出貨，協定仍在收斂。** MCP hub、canvas 函式庫、以及即時 web client（watcher＋WebSocket＋React Flow）今天就能用——見英文版 README 的 Quickstart。我們正在收集真實使用情境來定協定。**如果你曾希望能跟 agent 在白板上而不是 terminal 裡討論架構，[告訴我們你的情境](.github/ISSUE_TEMPLATE/use-case.yml)**——早期的需求對這個專案影響最大。
 
 ## 核心想法
 
@@ -17,8 +17,8 @@ Terminal 對視覺化思考者是一條太窄的管道。pairsketch 讓任何 re
 
 架構圖與完整決策理由（含「為什麼不做 mermaid 互動引擎」「為什麼 Obsidian 只當 client 不當 server」的論證）請見英文版 [README](README.md) 與[設計文件](docs/design.md)。
 
-- **Phase 0**：零前端——MCP＋`.canvas`＋Obsidian 當 viewer，驗證「在板上討論」勝過 terminal，並實測 token 成本。
-- **Phase 1**：自建薄 server＋React Flow web 端＋active board 閉環。
+- **Phase 0** ✅：零前端——MCP＋`.canvas`＋Obsidian 當 viewer，驗證「在板上討論」勝過 terminal，並實測 token 成本。
+- **Phase 1** ✅ 核心已出貨：serve 模式（watcher＋WebSocket＋REST）＋React Flow web 端＋active board 閉環＋拖拉即 pin＋events_since。
 - **Phase 2**：Yjs 即時協作、presence（人類＋agent 游標）、mermaid 匯入爆開、`@agent` pin 提問協定。
 
 ## 參與

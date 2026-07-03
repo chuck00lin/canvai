@@ -10,8 +10,11 @@
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "hub": "node packages/hub/src/cli.ts"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p packages/web",
+    "hub": "node packages/hub/src/cli.ts",
+    "serve": "node packages/hub/src/cli.ts serve",
+    "web:dev": "npm run dev -w @pairsketch/web",
+    "web:build": "npm run build -w @pairsketch/web"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

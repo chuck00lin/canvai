@@ -25,6 +25,30 @@ describe('autoLayout', () => {
     expect(Math.abs(minY - 490)).toBeLessThanOrEqual(1)
   })
 
+  it('leaves pinned nodes in place and flows the rest around them', async () => {
+    const data: CanvasData = {
+      nodes: [
+        { id: 'free1aaaaaaaaaaa', type: 'text', text: 'a', x: 0, y: 0, width: 200, height: 80 },
+        { id: 'pinnedaaaaaaaaaa', type: 'text', text: 'human put me here', x: 40, y: 20, width: 200, height: 80 },
+        { id: 'free2aaaaaaaaaaa', type: 'text', text: 'c', x: 10, y: 30, width: 200, height: 80 },
+      ],
+      edges: [{ id: 'e1', fromNode: 'free1aaaaaaaaaaa', toNode: 'free2aaaaaaaaaaa' }],
+    }
+    await autoLayout(data, { pinned: new Set(['pinnedaaaaaaaaaa']) })
+    const pinnedNode = data.nodes!.find((n) => n.id.startsWith('pinned'))!
+    expect(pinnedNode.x).toBe(40)
+    expect(pinnedNode.y).toBe(20)
+    for (const n of data.nodes!) {
+      if (n.id === pinnedNode.id) continue
+      const overlap =
+        n.x < pinnedNode.x + pinnedNode.width &&
+        n.x + n.width > pinnedNode.x &&
+        n.y < pinnedNode.y + pinnedNode.height &&
+        n.y + n.height > pinnedNode.y
+      expect(overlap).toBe(false)
+    }
+  })
+
   it('moves groups as blocks, preserving internal arrangement', async () => {
     const data: CanvasData = {
       nodes: [
