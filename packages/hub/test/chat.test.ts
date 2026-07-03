@@ -96,4 +96,37 @@ describe('chat side-channel', () => {
     expect(prompt).toContain('重點在右上角')
     expect(prompt).toContain('events_since')
   })
+
+  it('default mode (no {prompt} placeholder) pipes the prompt via stdin', async () => {
+    const probeRoot = await mkdtemp(path.join(tmpdir(), 'pairsketch-probe-'))
+    const script = path.join(probeRoot, 'stdin-agent.mjs')
+    await writeFile(
+      script,
+      [
+        "import { writeFileSync } from 'node:fs'",
+        "let input = ''",
+        "process.stdin.setEncoding('utf8')",
+        'for await (const chunk of process.stdin) input += chunk',
+        "writeFileSync('received-stdin.txt', input)",
+        "console.log('stdin-agent-ok')",
+        '',
+      ].join('\n'),
+      'utf8',
+    )
+
+    const { root, base } = await setup(`node ${script}`)
+    await fetch(`${base}/api/handoff`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+
+    await until(async () => {
+      const list = (await (await fetch(`${base}/api/chat`)).json()) as { messages: { text: string }[] }
+      return list.messages.some((m) => m.text === 'stdin-agent-ok')
+    })
+    const prompt = await readFile(path.join(root, 'received-stdin.txt'), 'utf8')
+    expect(prompt).toContain('summoned')
+    expect(prompt).toContain('Token discipline')
+  })
 })

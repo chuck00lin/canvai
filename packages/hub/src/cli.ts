@@ -21,8 +21,9 @@ options:
   --host <addr>    bind address (default: 127.0.0.1 — local only).
                    Use 0.0.0.0 to reach it over a VPN/LAN; pair it with --token.
   --token <secret> require a bearer token (or ?token=) on /api and /ws
-  --agent-cmd <t>  command for the handoff button; {prompt} is replaced
-                   (default: 'claude -p --mcp-config .mcp.json --allowedTools mcp__pairsketch {prompt}')
+  --agent-cmd <t>  command for the handoff button; the prompt is piped to
+                   stdin, or replaces a {prompt} placeholder if present
+                   (default: 'claude -p --mcp-config .mcp.json --allowedTools mcp__pairsketch')
 
 Both modes coordinate through files (.canvas, .pairsketch/) — run them
 side by side, or either one alone.`)

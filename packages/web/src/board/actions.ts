@@ -6,10 +6,13 @@ export interface BoardActionsValue {
   commitLabel: (id: string, label: string) => void
   /** x/y are in React Flow node coordinates (relative when parented); CanvasBoard converts to absolute. */
   commitGeometry: (id: string, geometry: { x?: number; y?: number; width?: number; height?: number }) => void
+  /** while any card is being edited, board reloads are deferred (a reload would blur the editor mid-typing) */
+  notifyEditing: (active: boolean) => void
 }
 
 export const BoardActions = createContext<BoardActionsValue>({
   commitText: () => {},
   commitLabel: () => {},
   commitGeometry: () => {},
+  notifyEditing: () => {},
 })

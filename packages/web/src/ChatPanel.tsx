@@ -52,6 +52,8 @@ export function ChatPanel({ signal, agentBusy }: Props) {
   )
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    // IME guard: Enter that confirms a CJK composition must NOT send
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
       void send(true)

@@ -50,16 +50,25 @@ function tintStyle(color?: string): CSSProperties | undefined {
 }
 
 function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
-  const { commitText, commitGeometry } = useContext(BoardActions)
+  const { commitText, commitGeometry, notifyEditing } = useContext(BoardActions)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const node = data.node
 
+  const begin = () => {
+    if (editing) return
+    setDraft(node.text ?? '')
+    setEditing(true)
+    notifyEditing(true)
+  }
   const finish = (save: boolean) => {
+    if (!editing) return
     setEditing(false)
+    notifyEditing(false)
     if (save && draft !== (node.text ?? '')) commitText(id, draft)
   }
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return
     if (event.key === 'Escape') finish(false)
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') finish(true)
   }
@@ -70,8 +79,7 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
       style={tintStyle(node.color)}
       onDoubleClick={(event) => {
         event.stopPropagation()
-        setDraft(node.text ?? '')
-        setEditing(true)
+        begin()
       }}
     >
       <NodeResizer
@@ -163,10 +171,14 @@ function LinkNode({ id, data, selected }: NodeProps<PSFlowNode>) {
 }
 
 function GroupNode({ id, data, selected }: NodeProps<PSFlowNode>) {
-  const { commitLabel, commitGeometry } = useContext(BoardActions)
-  const [editing, setEditing] = useState(false)
+  const { commitLabel, commitGeometry, notifyEditing } = useContext(BoardActions)
+  const [editing, setEditingState] = useState(false)
   const [draft, setDraft] = useState('')
   const node = data.node
+  const setEditing = (on: boolean) => {
+    setEditingState(on)
+    notifyEditing(on)
+  }
 
   return (
     <div className={`ps-group${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)}>

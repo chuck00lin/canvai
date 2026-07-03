@@ -13,7 +13,12 @@ import { getActiveBoard } from './state.ts'
  * accepts a prompt works via --agent-cmd "mytool {prompt}".
  */
 
-export const DEFAULT_AGENT_CMD = 'claude -p --mcp-config .mcp.json --allowedTools mcp__pairsketch {prompt}'
+/**
+ * No {prompt} placeholder here on purpose: the prompt goes in via STDIN.
+ * (Variadic flags like --allowedTools would swallow a trailing positional
+ * prompt, and multi-line prompts survive stdin unharmed.)
+ */
+export const DEFAULT_AGENT_CMD = 'claude -p --mcp-config .mcp.json --allowedTools mcp__pairsketch'
 
 export interface Summoner {
   readonly running: boolean
@@ -40,10 +45,11 @@ export function createSummoner(
         const prompt = await buildPrompt(root, note)
         const argv = agentCmd.split(/\s+/).filter((t) => t !== '')
         const promptIndex = argv.indexOf('{prompt}')
+        let stdinInput: string | undefined
         if (promptIndex >= 0) argv[promptIndex] = prompt
-        else argv.push(prompt)
+        else stdinInput = prompt // default: stdin — safe with variadic flags and multi-line prompts
 
-        const output = await run(argv, root, timeoutMs)
+        const output = await run(argv, root, timeoutMs, stdinInput)
         if (output.trim() !== '') {
           // whatever the agent printed is its reply — even without MCP access
           await appendChat(root, { from: 'agent', text: output.trim() })
@@ -89,15 +95,23 @@ async function buildPrompt(root: string, note?: string): Promise<string> {
     .join('\n')
 }
 
-function run(argv: string[], cwd: string, timeoutMs: number): Promise<string> {
+function run(argv: string[], cwd: string, timeoutMs: number, stdinInput?: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const [cmd, ...args] = argv
     if (!cmd) return reject(new Error('empty agent command'))
-    const child = spawn(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], timeout: timeoutMs })
+    const child = spawn(cmd, args, {
+      cwd,
+      stdio: [stdinInput === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
+      timeout: timeoutMs,
+    })
+    if (stdinInput !== undefined && child.stdin) {
+      child.stdin.write(stdinInput)
+      child.stdin.end()
+    }
     let out = ''
     let err = ''
-    child.stdout.on('data', (d: Buffer) => (out += d.toString()))
-    child.stderr.on('data', (d: Buffer) => (err += d.toString()))
+    child.stdout?.on('data', (d: Buffer) => (out += d.toString()))
+    child.stderr?.on('data', (d: Buffer) => (err += d.toString()))
     child.on('error', (e) => reject(new Error(`could not run "${cmd}": ${e.message}`)))
     child.on('close', (code, signal) => {
       if (signal) return reject(new Error(`agent turn killed (${signal}) — timeout is ${timeoutMs / 1000}s`))

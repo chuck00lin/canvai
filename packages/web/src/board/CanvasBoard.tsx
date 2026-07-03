@@ -58,9 +58,13 @@ function BoardInner({ path, changeSignal }: Props) {
     void load()
   }, [load])
 
+  const editingCount = useRef(0)
+
   useEffect(() => {
     if (changeSignal === 0) return
-    if (dragging.current) pendingReload.current = true
+    // a reload while dragging or editing would yank the interaction (blur the
+    // editor, drop the drag) — defer until the human is done
+    if (dragging.current || editingCount.current > 0) pendingReload.current = true
     else void load()
   }, [changeSignal, load])
 
@@ -91,8 +95,15 @@ function BoardInner({ path, changeSignal }: Props) {
         }
         mutate([{ kind: 'set_geometry', id, x, y, width: geometry.width, height: geometry.height }])
       },
+      notifyEditing: (active) => {
+        editingCount.current = Math.max(0, editingCount.current + (active ? 1 : -1))
+        if (editingCount.current === 0 && pendingReload.current) {
+          pendingReload.current = false
+          void load()
+        }
+      },
     }),
-    [mutate],
+    [mutate, load],
   )
 
   const onNodeDragStart = useCallback(() => {
