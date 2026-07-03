@@ -10,13 +10,14 @@ Repo-native visual discussion boards for humans + AI agents. JSON Canvas files a
 
 ## Non-negotiable invariants (from the design doc)
 
-1. `.canvas` round-trips preserve unknown fields (Advanced Canvas compatibility) and match Obsidian's serialization to keep git diffs minimal. Test-enforced once code exists.
+1. `.canvas` round-trips preserve unknown fields (Advanced Canvas compatibility) and mirror each file's serialization dialect to keep git diffs minimal. Test-enforced: `packages/canvas-kit/test/io.test.ts` (byte-identical round-trips) and the hub e2e.
 2. Agents never compute absolute coordinates — agent-reachable write paths go through semantic ops + ELK auto-layout; human-dragged nodes are `pinned` and auto-layout routes around them.
 3. Mermaid is I/O only (embed in cards, one-way import/explode) — never the persistence format. Rationale: design doc D2.
 4. Concurrency stays turn-based (atomic writes, last-write-wins, event feed) until Phase 2; no CRDT before then.
 
 ## Status & layout
 
-- Current phase: **pre-code (RFC)**. Next milestone: Phase 0 — MCP server + `.canvas` + Obsidian as viewer.
-- Planned monorepo: `packages/canvas-kit` (format lib), `packages/hub` (server + MCP), `packages/web` (React Flow client). TypeScript.
+- Current phase: **Phase 0 shipped** — `packages/canvas-kit` (round-trip io, projection, ops, ELK layout) + `packages/hub` (MCP stdio server). `packages/web` (React Flow client) arrives with Phase 1. Next: measure the token bill of a real discussion turn, then Phase 1.
+- No build step: Node ≥ 23.6 runs the TypeScript directly (erasable syntax only — no enums/namespaces; relative imports use `.ts` extensions). `npm test` (vitest, includes an MCP e2e loop) and `npx tsc --noEmit` must stay green.
+- Dogfooding: `.mcp.json` registers the hub for this repo; `discuss/roadmap.canvas` is a live board — feel free to update it via apply_ops when the roadmap changes.
 - License MIT. Do not vendor code from GPL projects (notably obsidian-advanced-canvas); format compatibility only.

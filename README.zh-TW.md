@@ -4,7 +4,7 @@
 
 Terminal 對視覺化思考者是一條太窄的管道。pairsketch 讓任何 repo 擁有一個共享白板——像 Miro / FigJam，但參與者包含 AI agent。人類在瀏覽器（或 Obsidian）裡拖拉卡片；agent 透過 MCP 讀寫同一塊板。板子就是 repo 裡的 [JSON Canvas](https://jsoncanvas.org) 純文字檔，跟程式碼一起被 git 版控。
 
-> **目前狀態：設計 / RFC 階段。** 還沒有程式碼——有的是一份[設計文件](docs/design.md)和一個計畫。我們正在收集真實使用情境來定協定。**如果你曾希望能跟 agent 在白板上而不是 terminal 裡討論架構，[告訴我們你的情境](.github/ISSUE_TEMPLATE/use-case.yml)**——早期的需求對這個專案影響最大。
+> **目前狀態：Phase 0 已出貨，協定仍在收斂。** MCP hub 與 canvas 函式庫今天就能用（見英文版 README 的 Quickstart）；web 端是 Phase 1。我們正在收集真實使用情境來定協定。**如果你曾希望能跟 agent 在白板上而不是 terminal 裡討論架構，[告訴我們你的情境](.github/ISSUE_TEMPLATE/use-case.yml)**——早期的需求對這個專案影響最大。
 
 ## 核心想法
 

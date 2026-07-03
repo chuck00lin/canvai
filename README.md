@@ -4,7 +4,36 @@
 
 Terminals are a narrow pipe for visual thinkers, and today it is the only pipe we share with our agents. pairsketch gives any repository a shared whiteboard — like Miro or FigJam, except the participants include AI agents. Humans drag cards around in a browser (or in Obsidian); agents read and edit the same boards through MCP. The boards are plain [JSON Canvas](https://jsoncanvas.org) files living in your repo, versioned by git like everything else.
 
-> **Status: design / RFC stage.** There is no code here yet — there is a [design document](docs/design.md) and a plan. We are collecting real-world use cases before locking the protocol. **If you have ever wished you could discuss architecture with an agent on a whiteboard instead of a terminal, [tell us about it](.github/ISSUE_TEMPLATE/use-case.yml)** — early requirements shape this project the most.
+> **Status: Phase 0 shipped, protocol still soft.** The MCP hub and the canvas library work today (see Quickstart); the web client is Phase 1. We are collecting real-world use cases before freezing the protocol. **If you have ever wished you could discuss architecture with an agent on a whiteboard instead of a terminal, [tell us about it](.github/ISSUE_TEMPLATE/use-case.yml)** — early requirements shape this project the most.
+
+## Quickstart (Phase 0: agent + Obsidian, no frontend)
+
+Requires Node ≥ 23.6 (runs TypeScript natively; no build step).
+
+```bash
+git clone <repo-url> && cd pairsketch
+npm install
+npm test   # 19 tests: round-trip fidelity, semantic ops, ELK layout, full MCP loop
+```
+
+Hook the hub into **any** repo — add to that repo's `.mcp.json` (Claude Code) or your MCP client's config:
+
+```json
+{
+  "mcpServers": {
+    "pairsketch": {
+      "command": "node",
+      "args": ["/path/to/pairsketch/packages/hub/src/cli.ts", "--root", "."]
+    }
+  }
+}
+```
+
+Open the repo folder as (or inside) an Obsidian vault, then ask your agent something like:
+
+> create a board `discuss/architecture.canvas`, set it active, and sketch our module structure on it
+
+Cards appear in Obsidian as the agent works; drag them around, and the agent picks your arrangement up on its next read. This very repo dogfoods the loop: [`discuss/roadmap.canvas`](discuss/roadmap.canvas) was drawn by the hub itself.
 
 ## The core idea
 
@@ -50,19 +79,20 @@ Every layer can fail independently: kill the server and humans still open boards
 3. The agent's next `get_active_board` call focuses there — reads a structural projection, applies ops, and the human watches cards appear live.
 4. Humans reply *on the board*: drag, annotate, or drop an `@agent` pin as a structured question.
 
-### Planned MCP surface (draft)
+### MCP surface
 
-| Tool | Purpose | Cost profile |
-|---|---|---|
-| `list_boards` / `get_active_board` | discover boards; find the human's current focus | O(boards) |
-| `read_board(mode)` | `structure` (default, coordinate-free) · `full` · `region` | structure ≈ ⅓ of full |
-| `apply_ops([...])` | batched semantic edits: add / update / connect / group / relative move | O(change) |
-| `insert_mermaid(text)` | Mermaid → parse → ELK layout → canvas nodes | structure price, positions free |
-| `events_since(cursor)` | what humans did since last sync (moves, new cards, pins) | O(diff) |
+| Tool | Purpose | Cost profile | Status |
+|---|---|---|---|
+| `list_boards` / `get_active_board` / `set_active_board` / `create_board` | discover boards; share one focus between human and agent | O(boards) | ✅ Phase 0 |
+| `read_board(mode)` | `structure` (default, coordinate-free) · `full` | structure ≈ ⅓ of full | ✅ Phase 0 |
+| `apply_ops([...])` | atomic batch of semantic edits: add / update / delete / connect / group / relative move, with `$ref` chaining | O(change) | ✅ Phase 0 |
+| `auto_layout` | ELK layered pass; groups move as blocks | O(1) call | ✅ Phase 0 |
+| `insert_mermaid(text)` | Mermaid → parse → ELK layout → canvas nodes | structure price, positions free | Phase 2 |
+| `events_since(cursor)` | what humans did since last sync (moves, new cards, pins) | O(diff) | Phase 1 |
 
 ## Roadmap
 
-- **Phase 0 — zero frontend.** MCP server + `.canvas` files + Obsidian as the viewer. Validates that discussing *on a board* beats discussing in a terminal, and measures real token costs. Turn-based collaboration.
+- **Phase 0 — zero frontend.** ✅ shipped. MCP server + `.canvas` files + Obsidian as the viewer. Validates that discussing *on a board* beats discussing in a terminal, and measures real token costs. Turn-based collaboration.
 - **Phase 1 — own client.** The thin local server (watcher + WebSocket + atomic writes that preserve unknown fields) and a React Flow editor with the active-board loop. Agent edits appear live in the browser.
 - **Phase 2 — real-time.** CRDT document layer (Yjs), presence (human and agent cursors), Mermaid import-explode, the `@agent` pin protocol, multi-board portals.
 

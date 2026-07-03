@@ -19,7 +19,7 @@ The [design document](docs/design.md) numbers its decisions (D1–D5) precisely 
 
 ## Code contributions
 
-Once Phase 0 lands, the codebase will be a TypeScript monorepo (`canvas-kit` / `hub` / `web` — see the design doc). Until then, please hold off on large unsolicited PRs — the ground is still moving. Small PRs to docs (typos, clarity, translations) are welcome any time.
+The codebase is a TypeScript monorepo: `canvas-kit` and `hub` shipped with Phase 0, `web` arrives with Phase 1. Run `npm test` before sending a PR. For large features, open an issue first — the protocol is still converging. Small PRs to docs (typos, clarity, translations) are welcome any time.
 
 Two invariants that will be enforced by tests from day one; keep them in mind for any early code:
 

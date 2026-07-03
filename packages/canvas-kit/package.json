@@ -1,0 +1,13 @@
+{
+  "name": "@pairsketch/canvas-kit",
+  "version": "0.1.0",
+  "description": "JSON Canvas toolkit: style-preserving round-trip IO, structural projection, semantic ops, ELK auto-layout",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "elkjs": "^0.9.3"
+  }
+}
