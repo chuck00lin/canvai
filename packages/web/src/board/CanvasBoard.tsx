@@ -219,6 +219,11 @@ function BoardInner({ path, changeSignal }: Props) {
       const kind = (e as PointerEvent).pointerType ?? ((e as TouchEvent).touches ? 'touch' : '?')
       return `${kind} ${dragging} (${x},${y})${e.defaultPrevented ? ' prevented' : ''}${(e as TouchEvent).cancelable === false ? ' NONCANCELABLE' : ''}`
     }
+    // per-gesture verdict: did a node drag ENGAGE, and how fast? Puts the
+    // measurement on the same gesture the tester feels.
+    let gestureT0 = 0
+    let gestureEngaged = false
+    let gestureOnNode = false
     const handlers: Array<[string, (e: Event) => void]> = (
       [
         'touchstart',
@@ -235,6 +240,23 @@ function BoardInner({ path, changeSignal }: Props) {
     ).map((type) => [
       type,
       (e: Event) => {
+        if (type === 'pointerdown') {
+          gestureT0 = performance.now()
+          gestureEngaged = false
+          gestureOnNode = !!(e.target as HTMLElement).closest?.('.react-flow__node')
+        }
+        if (
+          !gestureEngaged &&
+          gestureOnNode &&
+          (type === 'pointermove' || type === 'pointerup') &&
+          document.querySelector('.react-flow__node.dragging')
+        ) {
+          gestureEngaged = true
+          push(`>>> ENGAGE ${Math.round(performance.now() - gestureT0)}ms`)
+        }
+        if (type === 'pointerup' && gestureOnNode && !gestureEngaged) {
+          push(`>>> NO-ENGAGE（此次按在卡片上但拖曳未掛上）`)
+        }
         if (type === 'touchmove' || type === 'pointermove') {
           if ((e as PointerEvent).buttons === 0 && type === 'pointermove') return // hover noise
           const now = performance.now()
