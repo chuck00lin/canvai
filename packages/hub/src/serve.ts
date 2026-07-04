@@ -176,6 +176,19 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
     onStatus: (status) => broadcast({ type: 'handoff', status }),
   })
 
+  // signal mode: the resident session (via its bridge) reports busy through
+  // /api/agent-status — the summoner never runs, so it can't drive the
+  // indicator. TTL guards against a crashed session pinning 思考中 forever.
+  let signalBusy = false
+  let signalBusyTimer: ReturnType<typeof setTimeout> | undefined
+  const setSignalBusy = (busy: boolean) => {
+    signalBusy = busy
+    clearTimeout(signalBusyTimer)
+    if (busy) signalBusyTimer = setTimeout(() => setSignalBusy(false), 20 * 60_000)
+    broadcast({ type: 'handoff', status: busy ? 'started' : 'done' })
+  }
+  const agentBusy = () => summoner.running || signalBusy
+
   const server: Server = createServer((req, res) => {
     void route(req, res).catch((error) => {
       sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) })
@@ -264,6 +277,12 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
       broadcast({ type: 'chat_changed' })
       return sendJson(res, 200, { ok: true, id: message.id })
     }
+    if (pathname === '/api/agent-status' && req.method === 'POST') {
+      const body = (await readJson(req)) as { busy?: boolean }
+      if (typeof body.busy !== 'boolean') return sendJson(res, 400, { error: 'missing boolean "busy"' })
+      setSignalBusy(body.busy)
+      return sendJson(res, 200, { ok: true })
+    }
     if (pathname === '/api/handoff' && req.method === 'POST') {
       const body = (await readJson(req)) as { note?: string }
       let note = body.note
@@ -349,7 +368,7 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
       const active = await getActiveBoard(root)
       // busy: reconnecting clients missed handoff broadcasts while away —
       // without this a stale 思考中 indicator survives forever
-      socket.send(JSON.stringify({ type: 'hello', active: active ?? null, busy: summoner.running }))
+      socket.send(JSON.stringify({ type: 'hello', active: active ?? null, busy: agentBusy() }))
     })()
   })
 
