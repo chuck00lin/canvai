@@ -120,6 +120,7 @@ function BoardInner({ path, changeSignal }: Props) {
           void load()
         }
       },
+      deleteNode: (id) => mutate([{ kind: 'delete_node', id }]),
     }),
     [mutate, load],
   )
@@ -202,7 +203,7 @@ function BoardInner({ path, changeSignal }: Props) {
         const added = result.summary.find((line) => line.startsWith('added '))?.slice('added '.length)
         if (!added) return
         await load()
-        setEditReq((r) => ({ id: added, seq: r.seq + 1 }))
+        requestEdit(added)
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
       }
@@ -283,6 +284,19 @@ function BoardInner({ path, changeSignal }: Props) {
 
   const selNodeId = selNode?.id
   useEffect(() => setColorMode(false), [selNodeId])
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  useEffect(() => setConfirmDelete(false), [selNodeId, colorMode])
+
+  // opening an editor clears canvas selection: a toolbar lurking under the
+  // full-screen modal is a loaded gun — closing the modal leaves 🗑 exactly
+  // where the fingers are (2026-07-04: deleted a card the CEO never aimed at)
+  const requestEdit = useCallback(
+    (id: string) => {
+      setNodes((ns) => ns.map((n) => (n.selected ? { ...n, selected: false } : n)))
+      setEditReq((r) => ({ id, seq: r.seq + 1 }))
+    },
+    [setNodes],
+  )
 
   return (
     <div
@@ -309,7 +323,9 @@ function BoardInner({ path, changeSignal }: Props) {
             onSelectionChange={onSelectionChange}
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
-            deleteKeyCode={['Backspace', 'Delete']}
+            // touch: no keyboard delete — the toolbar 🗑 (with confirm) is
+            // the delete path; a lingering selection + Backspace was a trap
+            deleteKeyCode={coarse ? null : ['Backspace', 'Delete']}
             connectionRadius={44}
             // the attribution link hijacks long-presses near the corner on
             // touch; React Flow is credited in the README instead
@@ -363,7 +379,7 @@ function BoardInner({ path, changeSignal }: Props) {
           ) : selNode ? (
             <>
               {(selNode.type === 'text' || selNode.type === 'group') && (
-                <button onClick={() => setEditReq((r) => ({ id: selNode.id, seq: r.seq + 1 }))}>✏️ 編輯</button>
+                <button onClick={() => requestEdit(selNode.id)}>✏️ 編輯</button>
               )}
               <button onClick={() => setColorMode(true)} aria-label="card color">
                 🎨
@@ -371,9 +387,17 @@ function BoardInner({ path, changeSignal }: Props) {
               <button onClick={() => setConnectFrom(selNode.id)}>🔗 連線</button>
               <button
                 className="ps-toolbar-danger"
-                onClick={() => mutate([{ kind: 'delete_node', id: selNode.id }])}
+                onClick={() => {
+                  // two-step: a stray tap must not destroy a card (no undo yet)
+                  if (!confirmDelete) {
+                    setConfirmDelete(true)
+                    window.setTimeout(() => setConfirmDelete(false), 3000)
+                    return
+                  }
+                  mutate([{ kind: 'delete_node', id: selNode.id }])
+                }}
               >
-                🗑 刪除
+                {confirmDelete ? '❗確定刪除' : '🗑 刪除'}
               </button>
             </>
           ) : selEdge ? (

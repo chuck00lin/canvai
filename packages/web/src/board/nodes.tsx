@@ -1,4 +1,4 @@
-import { memo, useContext, useEffect, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { memo, useContext, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Handle, NodeResizer, Position, type NodeProps, type NodeTypes } from '@xyflow/react'
 import { api } from '../api'
@@ -20,8 +20,14 @@ function useEditRequest(id: string, begin: () => void) {
 
 /**
  * Phone editor: a card-sized inline textarea under a soft keyboard is
- * unusable, so editing gets a full-screen modal. Explicit 取消/儲存 —
- * no save-on-blur, a stray tap must not commit.
+ * unusable, so editing gets a full-screen modal.
+ *
+ * Backdrop rules learned in the field (2026-07-04 lost-text incident):
+ * - the long-press that OPENS the editor synthesizes a click on release,
+ *   which can land on the backdrop — ignore backdrop input during a short
+ *   grace period after mount;
+ * - after that, backdrop tap = SAVE. Only the explicit 取消 button
+ *   discards — a stray tap must never silently destroy typed text.
  */
 function PhoneEditor(props: {
   draft: string
@@ -29,8 +35,13 @@ function PhoneEditor(props: {
   onCancel: () => void
   onSave: () => void
 }) {
+  const mountedAt = useRef(performance.now())
+  const onBackdrop = () => {
+    if (performance.now() - mountedAt.current < 600) return
+    props.onSave()
+  }
   return createPortal(
-    <div className="ps-modal" onClick={props.onCancel}>
+    <div className="ps-modal" onClick={onBackdrop}>
       <div className="ps-modal-card" onClick={(event) => event.stopPropagation()}>
         <textarea
           autoFocus
@@ -95,7 +106,7 @@ function tintStyle(color?: string): CSSProperties | undefined {
 }
 
 function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
-  const { commitText, commitGeometry, notifyEditing } = useContext(BoardActions)
+  const { commitText, commitGeometry, notifyEditing, deleteNode } = useContext(BoardActions)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const phone = useMediaQuery(PHONE_QUERY)
@@ -111,6 +122,13 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
     if (!editing) return
     setEditing(false)
     notifyEditing(false)
+    // a card that stays empty after editing is invisible junk (the
+    // create-then-edit flow starts from '') — remove it instead
+    const result = save ? draft : (node.text ?? '')
+    if ((node.text ?? '') === '' && result.trim() === '') {
+      deleteNode(id)
+      return
+    }
     if (save && draft !== (node.text ?? '')) commitText(id, draft)
   }
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
