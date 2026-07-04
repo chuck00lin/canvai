@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import { readFile } from 'node:fs/promises'
+import { appendFile, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer, WebSocket } from 'ws'
@@ -276,6 +276,16 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
       const message = await appendChat(root, { from: 'human', text: body.text.trim(), board: body.board })
       broadcast({ type: 'chat_changed' })
       return sendJson(res, 200, { ok: true, id: message.id })
+    }
+    if (pathname === '/api/debug' && req.method === 'POST') {
+      // ?debugtouch remote diagnostics: the client streams raw touch events
+      // here so gesture bugs on real devices can be read server-side
+      const body = (await readJson(req)) as { lines?: string[] }
+      if (Array.isArray(body.lines) && body.lines.length > 0 && body.lines.length <= 500) {
+        const file = path.join(root, '.pairsketch', 'debug.jsonl')
+        await appendFile(file, body.lines.map((l) => String(l).slice(0, 300)).join('\n') + '\n', 'utf8')
+      }
+      return sendJson(res, 200, { ok: true })
     }
     if (pathname === '/api/agent-status' && req.method === 'POST') {
       const body = (await readJson(req)) as { busy?: boolean }

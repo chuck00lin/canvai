@@ -70,30 +70,62 @@ function BoardInner({ path, changeSignal }: Props) {
     return () => el.removeEventListener('touchmove', onTouchMove)
   }, [coarse])
 
-  // remote diagnostics: open /?token=…&debugtouch to get a live event readout
-  // on-device (emulators do not reproduce iOS gesture arbitration)
+  // remote diagnostics: open /?token=…&debugtouch — events show on-screen AND
+  // stream to the hub (.pairsketch/debug.jsonl) so gesture bugs on real
+  // devices can be read server-side (emulators don't reproduce iOS arbitration)
   const [debugLines, setDebugLines] = useState<string[]>([])
   const debugTouch = useMemo(() => new URLSearchParams(window.location.search).has('debugtouch'), [])
   useEffect(() => {
     if (!debugTouch) return
     const el = boardRef.current
     if (!el) return
-    const push = (line: string) =>
-      setDebugLines((prev) => [...prev.slice(-11), `${new Date().toISOString().slice(17, 23)} ${line}`])
+    const buffer: string[] = []
+    let lastMoveLogged = 0
+    const push = (line: string) => {
+      const stamped = `${new Date().toISOString().slice(11, 23)} ${line}`
+      buffer.push(stamped)
+      setDebugLines((prev) => [...prev.slice(-11), stamped])
+    }
     const label = (t: EventTarget | null) =>
-      ((t as HTMLElement)?.className?.toString().split(' ').slice(0, 2).join('.') ?? '?').slice(0, 28)
+      ((t as HTMLElement)?.className?.toString().split(' ').slice(0, 2).join('.') ?? '?').slice(0, 34)
+    const detail = (e: Event) => {
+      const touch = (e as TouchEvent).touches?.[0]
+      const x = touch ? Math.round(touch.clientX) : ''
+      const y = touch ? Math.round(touch.clientY) : ''
+      const dragging = document.querySelector('.react-flow__node.dragging') ? 'DRAG' : '----'
+      const n = (e as TouchEvent).touches?.length ?? ''
+      return `${dragging} n=${n} (${x},${y})${e.defaultPrevented ? ' prevented' : ''}${(e as TouchEvent).cancelable === false ? ' NONCANCELABLE' : ''}`
+    }
     const handlers: Array<[string, (e: Event) => void]> = (
-      ['touchstart', 'touchmove', 'touchend', 'touchcancel', 'pointerdown', 'pointercancel'] as const
+      ['touchstart', 'touchmove', 'touchend', 'touchcancel', 'pointerdown', 'pointerup', 'pointercancel'] as const
     ).map((type) => [
       type,
       (e: Event) => {
-        if (type === 'touchmove' && Math.random() > 0.2) return // sample moves
-        push(`${type} @${label(e.target)}${e.defaultPrevented ? ' P' : ''}${(e as TouchEvent).cancelable === false ? ' !c' : ''}`)
+        if (type === 'touchmove') {
+          const now = performance.now()
+          if (now - lastMoveLogged < 60) return
+          lastMoveLogged = now
+        }
+        push(`${type} @${label(e.target)} ${detail(e)}`)
       },
     ])
-    for (const [type, fn] of handlers) el.addEventListener(type, fn, { capture: true, passive: true })
+    // capture AND non-capture end: defaultPrevented is only meaningful after
+    // bubble handlers ran, so log at the end of the bubble phase
+    for (const [type, fn] of handlers) el.addEventListener(type, fn, { passive: true })
+    const flush = window.setInterval(() => {
+      if (buffer.length === 0) return
+      const lines = buffer.splice(0, buffer.length)
+      // reuse the page's own query string — it already carries ?token=
+      void fetch('/api/debug' + window.location.search, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ lines }),
+      }).catch(() => {})
+    }, 1500)
+    push(`debug session start ua=${navigator.userAgent.slice(0, 80)}`)
     return () => {
-      for (const [type, fn] of handlers) el.removeEventListener(type, fn, { capture: true })
+      for (const [type, fn] of handlers) el.removeEventListener(type, fn)
+      window.clearInterval(flush)
     }
   }, [debugTouch])
 
