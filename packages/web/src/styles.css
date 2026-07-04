@@ -26,12 +26,23 @@ body {
   /* touch: no pull-to-refresh / rubber-banding under canvas gestures, no tap flash */
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
+  /* the app is a full-viewport shell; the DOCUMENT must never scroll — a
+     scrollable page on iPad let drags scroll the whole canvas off-screen */
+  overflow: hidden;
 }
 
 .ps-app {
   display: grid;
   grid-template-columns: 280px 1fr 340px;
   height: 100%;
+}
+
+/* grid items default min-height:auto and grow to content — long chat
+   history stretched the whole app taller than the viewport (iPad field
+   bug: "chat panel 無限伸長"). Columns must clip, panes scroll inside. */
+.ps-app > * {
+  min-width: 0;
+  min-height: 0;
 }
 
 @media (max-width: 1100px) {
@@ -488,7 +499,13 @@ body {
   border-left: 1px solid var(--hair);
   background: var(--bg);
   min-width: 0;
+  min-height: 0;
   height: 100%;
+  overflow: hidden;
+}
+
+.ps-chat-list {
+  min-height: 0;
 }
 
 .ps-chat-head {
