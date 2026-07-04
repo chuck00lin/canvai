@@ -70,6 +70,63 @@ function BoardInner({ path, changeSignal }: Props) {
     return () => el.removeEventListener('touchmove', onTouchMove)
   }, [coarse])
 
+  // POINTER→MOUSE BRIDGE for iPad desktop-mode Safari. Field numbers: 69
+  // presses produced only 12 mousedowns — Safari synthesizes mouse events
+  // only for gestures it deems click-like, and with no TouchEvent API in
+  // desktop mode, d3-drag (mouse/touch only) can never see the rest. Drags
+  // therefore engaged ~1 time in 6 ("sometimes the center drags, sometimes
+  // not"). Pointer events arrive for 69/69 — so drive d3's mouse path from
+  // them ourselves. Only on nodes; pane pan/zoom works natively.
+  useEffect(() => {
+    if (!coarse) return
+    if ('ontouchstart' in window) return // real touch path exists (iPhone) — d3 handles it
+    const el = boardRef.current
+    if (!el) return
+    let bridging = false
+    let lastRealMouseDown = 0
+    const markReal = (event: MouseEvent) => {
+      if (event.isTrusted) lastRealMouseDown = performance.now()
+    }
+    const mouse = (type: string, pe: PointerEvent) =>
+      new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        clientX: pe.clientX,
+        clientY: pe.clientY,
+        button: 0,
+        buttons: type === 'mouseup' ? 0 : 1,
+      })
+    const onPointerDown = (pe: PointerEvent) => {
+      if (pe.pointerType !== 'touch' || !pe.isPrimary) return
+      if (!(pe.target as HTMLElement).closest?.('.react-flow__node')) return
+      // Safari already made a real mousedown for this gesture — don't double-drive
+      if (performance.now() - lastRealMouseDown < 80) return
+      bridging = true
+      ;(pe.target as HTMLElement).dispatchEvent(mouse('mousedown', pe))
+    }
+    const onPointerMove = (pe: PointerEvent) => {
+      if (bridging && pe.pointerType === 'touch' && pe.isPrimary) window.dispatchEvent(mouse('mousemove', pe))
+    }
+    const end = (pe: PointerEvent) => {
+      if (!bridging) return
+      bridging = false
+      window.dispatchEvent(mouse('mouseup', pe))
+    }
+    el.addEventListener('mousedown', markReal, { capture: true })
+    el.addEventListener('pointerdown', onPointerDown, { capture: true })
+    window.addEventListener('pointermove', onPointerMove, { capture: true })
+    window.addEventListener('pointerup', end, { capture: true })
+    window.addEventListener('pointercancel', end, { capture: true })
+    return () => {
+      el.removeEventListener('mousedown', markReal, { capture: true })
+      el.removeEventListener('pointerdown', onPointerDown, { capture: true })
+      window.removeEventListener('pointermove', onPointerMove, { capture: true })
+      window.removeEventListener('pointerup', end, { capture: true })
+      window.removeEventListener('pointercancel', end, { capture: true })
+    }
+  }, [coarse])
+
   // ZOMBIE-DRAG KILLER (field-diagnosed via debugtouch: a node stayed in
   // .dragging across an entire session). iPad desktop-mode Safari delivers
   // fingers as MOUSE events; when iOS claims a gesture mid-drag it stops the
