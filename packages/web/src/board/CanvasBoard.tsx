@@ -90,20 +90,35 @@ function BoardInner({ path, changeSignal }: Props) {
       ((t as HTMLElement)?.className?.toString().split(' ').slice(0, 2).join('.') ?? '?').slice(0, 34)
     const detail = (e: Event) => {
       const touch = (e as TouchEvent).touches?.[0]
-      const x = touch ? Math.round(touch.clientX) : ''
-      const y = touch ? Math.round(touch.clientY) : ''
-      const dragging = document.querySelector('.react-flow__node.dragging') ? 'DRAG' : '----'
-      const n = (e as TouchEvent).touches?.length ?? ''
-      return `${dragging} n=${n} (${x},${y})${e.defaultPrevented ? ' prevented' : ''}${(e as TouchEvent).cancelable === false ? ' NONCANCELABLE' : ''}`
+      const px = touch?.clientX ?? (e as PointerEvent).clientX
+      const py = touch?.clientY ?? (e as PointerEvent).clientY
+      const x = typeof px === 'number' ? Math.round(px) : ''
+      const y = typeof py === 'number' ? Math.round(py) : ''
+      const draggingEl = document.querySelector('.react-flow__node.dragging')
+      const dragging = draggingEl ? `DRAG:${draggingEl.getAttribute('data-id')?.slice(0, 6) ?? '?'}` : '----'
+      const kind = (e as PointerEvent).pointerType ?? ((e as TouchEvent).touches ? 'touch' : '?')
+      return `${kind} ${dragging} (${x},${y})${e.defaultPrevented ? ' prevented' : ''}${(e as TouchEvent).cancelable === false ? ' NONCANCELABLE' : ''}`
     }
     const handlers: Array<[string, (e: Event) => void]> = (
-      ['touchstart', 'touchmove', 'touchend', 'touchcancel', 'pointerdown', 'pointerup', 'pointercancel'] as const
+      [
+        'touchstart',
+        'touchmove',
+        'touchend',
+        'touchcancel',
+        'pointerdown',
+        'pointermove',
+        'pointerup',
+        'pointercancel',
+        'mousedown',
+        'mouseup',
+      ] as const
     ).map((type) => [
       type,
       (e: Event) => {
-        if (type === 'touchmove') {
+        if (type === 'touchmove' || type === 'pointermove') {
+          if ((e as PointerEvent).buttons === 0 && type === 'pointermove') return // hover noise
           const now = performance.now()
-          if (now - lastMoveLogged < 60) return
+          if (now - lastMoveLogged < 80) return
           lastMoveLogged = now
         }
         push(`${type} @${label(e.target)} ${detail(e)}`)
