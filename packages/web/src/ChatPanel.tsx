@@ -40,6 +40,11 @@ export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [sendBusy, setSendBusy] = useState(false)
+  const lastSent = useRef<{ text: string; at: number }>({ text: '', at: 0 })
+  // iOS IME: the Return that CONFIRMS a composition arrives AFTER
+  // compositionend with isComposing=false — the standard guard misses it
+  const compositionEndedAt = useRef(0)
   // set when 交棒 is sent; cleared when the busy signal (or a reply) arrives
   const [handoffSentAt, setHandoffSentAt] = useState<number | null>(null)
   const [busySince, setBusySince] = useState<number | null>(null)
@@ -84,11 +89,21 @@ export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
 
   const send = useCallback(
     async (alsoHandoff: boolean) => {
+      if (sendBusy) return // in-flight lock: no double-fire while awaiting
       const text = draft.trim()
+      // same text within 3s = a duplicate trigger (leaked IME Enter + button
+      // tap, double tap, ...) — field bug 2026-07-04: every message arrived twice
+      const now = Date.now()
+      if (text !== '' && text === lastSent.current.text && now - lastSent.current.at < 3000) {
+        setDraft('')
+        return
+      }
       try {
+        setSendBusy(true)
         setError(null)
         if (text !== '') {
           await api.postChat(text)
+          lastSent.current = { text, at: Date.now() }
           setDraft('')
         }
         if (alsoHandoff && !agentBusy) {
@@ -97,9 +112,11 @@ export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
+      } finally {
+        setSendBusy(false)
       }
     },
-    [draft, agentBusy],
+    [draft, agentBusy, sendBusy],
   )
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -107,6 +124,9 @@ export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
     if (event.nativeEvent.isComposing || event.keyCode === 229) return
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
+      // iOS delivers the composition-confirming Return AFTER compositionend
+      // with isComposing already false — swallow Enters right after it
+      if (Date.now() - compositionEndedAt.current < 150) return
       void send(true)
     }
   }
@@ -161,12 +181,15 @@ export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
           placeholder="說點什麼…（Enter 送出＋交棒，Shift+Enter 換行）"
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
+          onCompositionEnd={() => {
+            compositionEndedAt.current = Date.now()
+          }}
         />
         <div className="ps-chat-actions">
-          <button onClick={() => void send(false)} disabled={draft.trim() === ''} title="只記錄，不呼叫 agent">
+          <button onClick={() => void send(false)} disabled={draft.trim() === '' || sendBusy} title="只記錄，不呼叫 agent">
             只送出
           </button>
-          <button className="ps-primary" onClick={() => void send(true)} disabled={agentBusy} title="呼叫一個 agent 回合（會讀 chat、events 與 active board）">
+          <button className="ps-primary" onClick={() => void send(true)} disabled={agentBusy || sendBusy} title="呼叫一個 agent 回合（會讀 chat、events 與 active board）">
             {agentBusy ? '🤖 思考中…' : draft.trim() === '' ? '交棒 🤖' : '送出＋交棒 🤖'}
           </button>
         </div>
