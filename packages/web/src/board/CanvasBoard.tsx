@@ -261,14 +261,29 @@ function BoardInner({ path, changeSignal }: Props) {
     [],
   )
 
-  // connect mode (touch): 連線 on the toolbar, then tap the target node
+  // connect mode (touch): 連線 on the toolbar, then tap the target node.
+  // Otherwise: force-select on click — some iOS tap sequences (e.g. first
+  // tap after the keyboard dismisses) deliver the click without React Flow
+  // registering selection, and the toolbar never appears
   const onNodeClick = useCallback(
     (_event: ReactMouseEvent, node: FlowNode) => {
-      if (!connectFrom) return
-      if (node.id !== connectFrom) mutate([{ kind: 'add_edge', from: connectFrom, to: node.id }])
-      setConnectFrom(null)
+      if (connectFrom) {
+        if (node.id !== connectFrom) mutate([{ kind: 'add_edge', from: connectFrom, to: node.id }])
+        setConnectFrom(null)
+        return
+      }
+      setNodes((ns) =>
+        ns.map((n) =>
+          n.id === node.id ? (n.selected ? n : { ...n, selected: true }) : n.selected ? { ...n, selected: false } : n,
+        ),
+      )
+      setSelection((prev) =>
+        prev.nodes.length === 1 && prev.nodes[0] === node.id && prev.edges.length === 0
+          ? prev
+          : { nodes: [node.id], edges: [] },
+      )
     },
-    [connectFrom, mutate],
+    [connectFrom, mutate, setNodes],
   )
 
   const onPaneClick = useCallback(() => setConnectFrom(null), [])
@@ -326,6 +341,8 @@ function BoardInner({ path, changeSignal }: Props) {
             // touch: no keyboard delete — the toolbar 🗑 (with confirm) is
             // the delete path; a lingering selection + Backspace was a trap
             deleteKeyCode={coarse ? null : ['Backspace', 'Delete']}
+            // touch: edges are 1.6px lines — give the finger a fatter target
+            defaultEdgeOptions={coarse ? { interactionWidth: 32 } : undefined}
             connectionRadius={44}
             // the attribution link hijacks long-presses near the corner on
             // touch; React Flow is credited in the README instead

@@ -766,9 +766,13 @@ body {
     opacity: 1;
   }
 
+  /* resize: big corner grips (the side lines stay thin — corners are the
+     touch affordance; side midpoints belong to the connection handles) */
   .react-flow__resize-control.handle {
-    width: 16px;
-    height: 16px;
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    border-width: 2.5px;
   }
 }
 
