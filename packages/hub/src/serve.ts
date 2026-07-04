@@ -143,9 +143,22 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
     broadcast({ type: 'board_changed', board })
   }
 
+  // state.json also carries pins, so it rewrites on every human geometry edit —
+  // only broadcast active_changed when the active board actually changed,
+  // or every pin rewrite yanks connected clients to the active board
+  let lastActive: string | null | undefined
+  void getActiveBoard(root).then((active) => {
+    if (lastActive === undefined) lastActive = active ?? null
+  })
+
   const watcher = watchRoot(root, (signal) => {
     if (signal.type === 'state') {
-      void getActiveBoard(root).then((active) => broadcast({ type: 'active_changed', active: active ?? null }))
+      void getActiveBoard(root).then((active) => {
+        const value = active ?? null
+        if (value === lastActive) return
+        lastActive = value
+        broadcast({ type: 'active_changed', active: value })
+      })
       return
     }
     if (signal.type === 'chat') {
@@ -207,6 +220,7 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
       await readBoardRaw(root, body.board) // must exist
       await setActiveBoard(root, body.board)
       await appendEvent(root, { origin: 'human', kind: 'active_changed', board: body.board })
+      lastActive = body.board
       broadcast({ type: 'active_changed', active: body.board })
       return sendJson(res, 200, { ok: true })
     }

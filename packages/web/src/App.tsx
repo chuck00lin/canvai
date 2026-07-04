@@ -7,7 +7,13 @@ import { PHONE_QUERY, useMediaQuery } from './useMediaQuery'
 export function App() {
   const [boards, setBoards] = useState<BoardInfo[]>([])
   const [active, setActive] = useState<string | null>(null)
-  const [current, setCurrent] = useState<string | null>(null)
+  // survive reloads (mobile browsers discard background tabs freely) — don't
+  // dump the user back on the active board after every resume
+  const [current, setCurrent] = useState<string | null>(() => sessionStorage.getItem('ps-current'))
+
+  useEffect(() => {
+    if (current) sessionStorage.setItem('ps-current', current)
+  }, [current])
   const [changeSignal, setChangeSignal] = useState(0)
   const [chatSignal, setChatSignal] = useState(0)
   const [agentBusy, setAgentBusy] = useState(false)
@@ -19,6 +25,8 @@ export function App() {
   const [chatUnread, setChatUnread] = useState(false)
   const currentRef = useRef<string | null>(null)
   currentRef.current = current
+  const activeRef = useRef<string | null>(null)
+  activeRef.current = active
   const chatOpenRef = useRef(false)
   chatOpenRef.current = chatOpen
 
@@ -28,7 +36,11 @@ export function App() {
       setBoards(result.boards)
       setActive(result.active)
       setOffline(false)
-      setCurrent((existing) => existing ?? result.active ?? result.boards[0]?.path ?? null)
+      setCurrent((existing) =>
+        existing && result.boards.some((b) => b.path === existing)
+          ? existing
+          : (result.active ?? result.boards[0]?.path ?? null),
+      )
     } catch {
       setOffline(true)
     }
@@ -42,9 +54,15 @@ export function App() {
         setChangeSignal((n) => n + 1)
       }
       if (message.type === 'hello' || message.type === 'active_changed') {
+        const previous = activeRef.current
         setActive(message.active)
-        // the active board is the shared focus — follow it
-        if (message.active) setCurrent(message.active)
+        // follow the shared focus when it actually CHANGES — a (re)connect
+        // hello or a re-broadcast of the same value must not yank the user
+        // off a board they navigated to themselves
+        if (message.type === 'active_changed' && message.active && message.active !== previous) {
+          setCurrent(message.active)
+        }
+        if (message.type === 'hello') setCurrent((existing) => existing ?? message.active)
       }
       if (message.type === 'chat_changed') {
         setChatSignal((n) => n + 1)

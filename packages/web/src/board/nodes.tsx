@@ -5,6 +5,7 @@ import { api } from '../api'
 import { BoardActions, EditRequest } from './actions'
 import { colorOf, type PSFlowNode } from './mapping'
 import { Markdown } from '../markdown'
+import { useLongPress } from './useLongPress'
 import { PHONE_QUERY, useMediaQuery } from '../useMediaQuery'
 
 /** listen for toolbar-initiated edit requests (touch has no double-click) */
@@ -118,6 +119,8 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') finish(true)
   }
   useEditRequest(id, begin)
+  // touch: long-press or double-tap a card = edit (double-click is mouse-only)
+  const press = useLongPress({ onLongPress: begin, onDoubleTap: begin })
 
   return (
     <div
@@ -127,6 +130,7 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
         event.stopPropagation()
         begin()
       }}
+      {...press}
     >
       <NodeResizer
         isVisible={!!selected}
@@ -228,14 +232,16 @@ function GroupNode({ id, data, selected }: NodeProps<PSFlowNode>) {
     setEditingState(on)
     notifyEditing(on)
   }
-  useEditRequest(id, () => {
+  const beginLabel = () => {
     if (editing) return
     setDraft(node.label ?? '')
     setEditing(true)
-  })
+  }
+  useEditRequest(id, beginLabel)
+  const press = useLongPress({ onLongPress: beginLabel, onDoubleTap: beginLabel })
 
   return (
-    <div className={`ps-group${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)}>
+    <div className={`ps-group${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)} {...press}>
       <NodeResizer isVisible={!!selected} minWidth={160} minHeight={120} onResizeEnd={(_, p) => commitGeometry(id, p)} />
       <Sides />
       <Pin pinned={data.pinned} />

@@ -17,6 +17,7 @@ import { api, type Mutation } from '../api'
 import { BoardActions, EditRequest, type BoardActionsValue, type EditRequestValue } from './actions'
 import { absolutePosition, colorOf, toFlow, type PSFlowNode } from './mapping'
 import { nodeTypes } from './nodes'
+import { useLongPress } from './useLongPress'
 import { COARSE_QUERY, useMediaQuery } from '../useMediaQuery'
 
 interface Props {
@@ -113,8 +114,14 @@ function BoardInner({ path, changeSignal }: Props) {
     [mutate, load],
   )
 
+  // positions when the drag interaction began — a tap also fires
+  // dragstart/dragstop, and committing an unmoved node would PIN it
+  const dragStartPos = useRef<Map<string, { x: number; y: number }>>(new Map())
+
   const onNodeDragStart = useCallback(() => {
     dragging.current = true
+    const map = byId()
+    dragStartPos.current = new Map([...map.values()].map((n) => [n.id, absolutePosition(n, map)]))
   }, [])
 
   const onNodeDragStop = useCallback(
@@ -135,7 +142,11 @@ function BoardInner({ path, changeSignal }: Props) {
           }
         }
       }
-      mutate([...moves.entries()].map(([id, pos]) => ({ kind: 'set_geometry', id, x: pos.x, y: pos.y })))
+      const changed = [...moves.entries()].filter(([id, pos]) => {
+        const start = dragStartPos.current.get(id)
+        return !start || Math.abs(start.x - pos.x) > 0.5 || Math.abs(start.y - pos.y) > 0.5
+      })
+      mutate(changed.map(([id, pos]) => ({ kind: 'set_geometry', id, x: pos.x, y: pos.y })))
       if (pendingReload.current) {
         pendingReload.current = false
         void load()
@@ -169,20 +180,45 @@ function BoardInner({ path, changeSignal }: Props) {
     [mutate],
   )
 
-  const addCard = useCallback(() => {
-    const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
-    mutate([{ kind: 'add_text_node', x: center.x - 150, y: center.y - 50, text: 'new card' }])
-  }, [mutate, screenToFlowPosition])
+  // create a card and drop straight into its editor — the id comes back in
+  // the mutate summary as `added <id>`
+  const addCardAt = useCallback(
+    async (screen: { x: number; y: number }) => {
+      const position = screenToFlowPosition(screen)
+      try {
+        const result = await api.mutate(path, [
+          { kind: 'add_text_node', x: position.x - 100, y: position.y - 40, text: '' },
+        ])
+        const added = result.summary.find((line) => line.startsWith('added '))?.slice('added '.length)
+        if (!added) return
+        await load()
+        setEditReq((r) => ({ id: added, seq: r.seq + 1 }))
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+      }
+    },
+    [path, screenToFlowPosition, load],
+  )
+
+  const addCard = useCallback(
+    () => void addCardAt({ x: window.innerWidth / 2, y: window.innerHeight / 2 }),
+    [addCardAt],
+  )
 
   // double-click on empty canvas = new card where you clicked
   const onWrapperDoubleClick = useCallback(
     (event: ReactMouseEvent) => {
       if (!(event.target as HTMLElement).classList.contains('react-flow__pane')) return
-      const position = screenToFlowPosition({ x: event.clientX, y: event.clientY })
-      mutate([{ kind: 'add_text_node', x: position.x - 150, y: position.y - 40, text: 'new card' }])
+      void addCardAt({ x: event.clientX, y: event.clientY })
     },
-    [mutate, screenToFlowPosition],
+    [addCardAt],
   )
+
+  // touch: long-press on empty canvas = new card under the finger
+  const panePress = useLongPress({
+    onLongPress: (point) => void addCardAt(point),
+    accept: (event) => (event.target as HTMLElement).classList.contains('react-flow__pane'),
+  })
 
   const reverseEdge = useCallback(
     (edge: FlowEdge) => {
@@ -236,7 +272,13 @@ function BoardInner({ path, changeSignal }: Props) {
       : undefined
 
   return (
-    <div className="ps-board" onDoubleClick={onWrapperDoubleClick}>
+    <div
+      className="ps-board"
+      onDoubleClick={onWrapperDoubleClick}
+      // long-press must not open the browser context menu / selection callout
+      onContextMenu={coarse ? (event) => event.preventDefault() : undefined}
+      {...panePress}
+    >
       <BoardActions.Provider value={actions}>
         <EditRequest.Provider value={editReq}>
           <ReactFlow
@@ -256,6 +298,8 @@ function BoardInner({ path, changeSignal }: Props) {
             onPaneClick={onPaneClick}
             deleteKeyCode={['Backspace', 'Delete']}
             connectionRadius={44}
+            // touch: a tap with slight jitter must select, not micro-drag (drag = pin)
+            nodeDragThreshold={coarse ? 8 : 1}
             fitView
             minZoom={0.05}
             zoomOnDoubleClick={false}

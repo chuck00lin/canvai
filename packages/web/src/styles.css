@@ -713,6 +713,13 @@ body {
 
 /* ── touch-first devices: fatter targets ── */
 @media (pointer: coarse) {
+  /* long-press is ours (edit / new card) — not the selection callout's */
+  .ps-board {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
   .ps-handle {
     width: 22px;
     height: 22px;
