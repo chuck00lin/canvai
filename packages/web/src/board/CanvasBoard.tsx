@@ -216,8 +216,13 @@ function BoardInner({ path, changeSignal }: Props) {
       const y = typeof py === 'number' ? Math.round(py) : ''
       const draggingEl = document.querySelector('.react-flow__node.dragging')
       const dragging = draggingEl ? `DRAG:${draggingEl.getAttribute('data-id')?.slice(0, 6) ?? '?'}` : '----'
+      // live transform of the dragged node: distinguishes "state updates but
+      // iOS won't paint" from "position pipeline frozen" during a desync
+      const dragT = draggingEl
+        ? `T(${(draggingEl as HTMLElement).style.transform.match(/-?[\d.]+/g)?.slice(0, 2).map(Number).map(Math.round).join(',') ?? '?'})`
+        : ''
       const kind = (e as PointerEvent).pointerType ?? ((e as TouchEvent).touches ? 'touch' : '?')
-      return `${kind} ${dragging} (${x},${y})${e.defaultPrevented ? ' prevented' : ''}${(e as TouchEvent).cancelable === false ? ' NONCANCELABLE' : ''}`
+      return `${kind} ${dragging}${dragT} (${x},${y})${e.defaultPrevented ? ' prevented' : ''}${(e as TouchEvent).cancelable === false ? ' NONCANCELABLE' : ''}`
     }
     // per-gesture verdict: did a node drag ENGAGE, and how fast? Puts the
     // measurement on the same gesture the tester feels.
