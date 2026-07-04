@@ -1,4 +1,4 @@
-import { memo, useContext, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { memo, useCallback, useContext, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Handle, NodeResizer, Position, type NodeProps, type NodeTypes } from '@xyflow/react'
 import { api } from '../api'
@@ -141,6 +141,15 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   // just selects (toolbar + resize handles appear), matching platform
   // convention that a long-press opens options, not an editor
   const press = useLongPress({ onDoubleTap: begin })
+  // MUST be referentially stable: React Flow's ResizeControl lists
+  // onResizeEnd in an effect that destroys/rebinds the resizer on change —
+  // an inline arrow re-created per render killed in-flight TOUCH resize
+  // gestures after their first frame (mouse survived: window listeners)
+  const onResizeEnd = useCallback(
+    (_: unknown, params: { x: number; y: number; width: number; height: number }) =>
+      commitGeometry(id, params),
+    [commitGeometry, id],
+  )
 
   return (
     // resizer + handles live OUTSIDE the card div: .ps-card clips overflow,
@@ -153,7 +162,7 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
         lineClassName="nopan"
         minWidth={120}
         minHeight={48}
-        onResizeEnd={(_, params) => commitGeometry(id, params)}
+        onResizeEnd={onResizeEnd}
       />
       <Sides />
       <div
@@ -192,6 +201,15 @@ const TEXT_EXTS = new Set(['md', 'markdown', 'txt'])
 
 function FileNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   const { commitGeometry } = useContext(BoardActions)
+  // MUST be referentially stable: React Flow's ResizeControl lists
+  // onResizeEnd in an effect that destroys/rebinds the resizer on change —
+  // an inline arrow re-created per render killed in-flight TOUCH resize
+  // gestures after their first frame (mouse survived: window listeners)
+  const onResizeEnd = useCallback(
+    (_: unknown, params: { x: number; y: number; width: number; height: number }) =>
+      commitGeometry(id, params),
+    [commitGeometry, id],
+  )
   const node = data.node
   const file = node.file ?? ''
   const ext = file.split('.').pop()?.toLowerCase() ?? ''
@@ -216,7 +234,7 @@ function FileNode({ id, data, selected }: NodeProps<PSFlowNode>) {
 
   return (
     <div className={selected ? 'is-selected' : undefined} style={{ width: '100%', height: '100%' }}>
-      <NodeResizer isVisible={!!selected} handleClassName="nopan" lineClassName="nopan" minWidth={120} minHeight={40} onResizeEnd={(_, p) => commitGeometry(id, p)} />
+      <NodeResizer isVisible={!!selected} handleClassName="nopan" lineClassName="nopan" minWidth={120} minHeight={40} onResizeEnd={onResizeEnd} />
       <Sides />
       <div className={`ps-card ps-file${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)}>
         <Pin pinned={data.pinned} />
@@ -239,10 +257,19 @@ function FileNode({ id, data, selected }: NodeProps<PSFlowNode>) {
 
 function LinkNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   const { commitGeometry } = useContext(BoardActions)
+  // MUST be referentially stable: React Flow's ResizeControl lists
+  // onResizeEnd in an effect that destroys/rebinds the resizer on change —
+  // an inline arrow re-created per render killed in-flight TOUCH resize
+  // gestures after their first frame (mouse survived: window listeners)
+  const onResizeEnd = useCallback(
+    (_: unknown, params: { x: number; y: number; width: number; height: number }) =>
+      commitGeometry(id, params),
+    [commitGeometry, id],
+  )
   const node = data.node
   return (
     <div className={selected ? 'is-selected' : undefined} style={{ width: '100%', height: '100%' }}>
-      <NodeResizer isVisible={!!selected} handleClassName="nopan" lineClassName="nopan" minWidth={120} minHeight={40} onResizeEnd={(_, p) => commitGeometry(id, p)} />
+      <NodeResizer isVisible={!!selected} handleClassName="nopan" lineClassName="nopan" minWidth={120} minHeight={40} onResizeEnd={onResizeEnd} />
       <Sides />
       <div className={`ps-card ps-link${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)}>
         <Pin pinned={data.pinned} />
@@ -256,6 +283,15 @@ function LinkNode({ id, data, selected }: NodeProps<PSFlowNode>) {
 
 function GroupNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   const { commitLabel, commitGeometry, notifyEditing } = useContext(BoardActions)
+  // MUST be referentially stable: React Flow's ResizeControl lists
+  // onResizeEnd in an effect that destroys/rebinds the resizer on change —
+  // an inline arrow re-created per render killed in-flight TOUCH resize
+  // gestures after their first frame (mouse survived: window listeners)
+  const onResizeEnd = useCallback(
+    (_: unknown, params: { x: number; y: number; width: number; height: number }) =>
+      commitGeometry(id, params),
+    [commitGeometry, id],
+  )
   const [editing, setEditingState] = useState(false)
   const [draft, setDraft] = useState('')
   const node = data.node
@@ -273,7 +309,7 @@ function GroupNode({ id, data, selected }: NodeProps<PSFlowNode>) {
 
   return (
     <div className={`ps-group${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)} {...press}>
-      <NodeResizer isVisible={!!selected} handleClassName="nopan" lineClassName="nopan" minWidth={160} minHeight={120} onResizeEnd={(_, p) => commitGeometry(id, p)} />
+      <NodeResizer isVisible={!!selected} handleClassName="nopan" lineClassName="nopan" minWidth={160} minHeight={120} onResizeEnd={onResizeEnd} />
       <Sides />
       <Pin pinned={data.pinned} />
       {editing ? (
