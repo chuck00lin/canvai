@@ -2,7 +2,7 @@ import { useRef, type PointerEvent as ReactPointerEvent } from 'react'
 
 interface LongPressOptions {
   /** stationary touch held past `delay` */
-  onLongPress: (point: { x: number; y: number }) => void
+  onLongPress?: (point: { x: number; y: number }) => void
   /** two quick taps in place (touch dblclick is unreliable across mobile browsers) */
   onDoubleTap?: (point: { x: number; y: number }) => void
   delay?: number
@@ -34,6 +34,7 @@ export function useLongPress({ onLongPress, onDoubleTap, delay = 450, moveTolera
     const point = { x: event.clientX, y: event.clientY }
     origin.current = point
     window.clearTimeout(timer.current)
+    if (!onLongPress) return
     timer.current = window.setTimeout(() => {
       if (!origin.current) return
       origin.current = null

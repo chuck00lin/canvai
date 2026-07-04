@@ -119,8 +119,10 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') finish(true)
   }
   useEditRequest(id, begin)
-  // touch: long-press or double-tap a card = edit (double-click is mouse-only)
-  const press = useLongPress({ onLongPress: begin, onDoubleTap: begin })
+  // touch: double-tap = edit. Long-press deliberately does NOT edit — it
+  // just selects (toolbar + resize handles appear), matching platform
+  // convention that a long-press opens options, not an editor
+  const press = useLongPress({ onDoubleTap: begin })
 
   return (
     <div
@@ -238,7 +240,7 @@ function GroupNode({ id, data, selected }: NodeProps<PSFlowNode>) {
     setEditing(true)
   }
   useEditRequest(id, beginLabel)
-  const press = useLongPress({ onLongPress: beginLabel, onDoubleTap: beginLabel })
+  const press = useLongPress({ onDoubleTap: beginLabel })
 
   return (
     <div className={`ps-group${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)} {...press}>

@@ -34,7 +34,10 @@ function MermaidBlock({ code }: { code: string }) {
       cancelled = true
     }
   }, [code])
-  return <div className="ps-mermaid nodrag nowheel" ref={ref} />
+  // NO nodrag here: the diagram often fills the whole card, and users grab
+  // the card center to drag — nodrag would leave only the border draggable
+  // (field-tested 2026-07-04: read as "drag is broken/stuck")
+  return <div className="ps-mermaid nowheel" ref={ref} />
 }
 
 type Part = { kind: 'md'; html: string } | { kind: 'mermaid'; code: string }
