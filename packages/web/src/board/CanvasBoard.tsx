@@ -82,7 +82,6 @@ function BoardInner({ path, changeSignal }: Props) {
     const el = boardRef.current
     if (!el) return
     let bridging = false
-    let lastRealMouseDown = 0
     // GATE ON BEHAVIOR, NOT API: desktop-mode iPad keeps the TouchEvent API
     // surface ('ontouchstart' in window is TRUE) but never DISPATCHES touch
     // events — an API-presence check disqualified exactly the device that
@@ -92,8 +91,13 @@ function BoardInner({ path, changeSignal }: Props) {
     const markTouch = () => {
       touchWorks = true
     }
-    const markReal = (event: MouseEvent) => {
-      if (event.isTrusted) lastRealMouseDown = performance.now()
+    // While we drive d3 with the synthetic stream, Safari's own click-like
+    // synthesis (a lone mousedown with NO mousemoves) must not reach d3 —
+    // it starts a drag that can never move (field: "first press freezes,
+    // works after idling/panning"). stopImmediatePropagation only — NO
+    // preventDefault, or the native click (selection taps) dies with it.
+    const swallowRealMouse = (event: MouseEvent) => {
+      if (bridging && event.isTrusted) event.stopImmediatePropagation()
     }
     const mouse = (type: string, pe: PointerEvent) =>
       new MouseEvent(type, {
@@ -110,14 +114,17 @@ function BoardInner({ path, changeSignal }: Props) {
       if (pe.pointerType !== 'touch' || !pe.isPrimary) return
       if (!(pe.target as HTMLElement).closest?.('.react-flow__node')) return
       const target = pe.target as HTMLElement
-      // defer one tick: on a REAL touch platform the first-ever gesture may
-      // deliver touchstart right after pointerdown — abort instead of
-      // double-driving d3 with both paths
+      // arm the swallow immediately — Safari's click-like mousedown can land
+      // in this same tick and must not reach d3
+      bridging = true
+      // defer the synthetic mousedown one tick: on a REAL touch platform the
+      // first-ever gesture may deliver touchstart right after pointerdown —
+      // abort instead of double-driving d3 with both paths
       window.setTimeout(() => {
-        if (touchWorks) return
-        // Safari already made a real mousedown for this gesture — don't double-drive
-        if (performance.now() - lastRealMouseDown < 80) return
-        bridging = true
+        if (touchWorks) {
+          bridging = false
+          return
+        }
         target.dispatchEvent(mouse('mousedown', pe))
       }, 0)
     }
@@ -130,14 +137,18 @@ function BoardInner({ path, changeSignal }: Props) {
       window.dispatchEvent(mouse('mouseup', pe))
     }
     window.addEventListener('touchstart', markTouch, { capture: true, passive: true })
-    el.addEventListener('mousedown', markReal, { capture: true })
+    el.addEventListener('mousedown', swallowRealMouse, { capture: true })
+    el.addEventListener('mousemove', swallowRealMouse, { capture: true })
+    el.addEventListener('mouseup', swallowRealMouse, { capture: true })
     el.addEventListener('pointerdown', onPointerDown, { capture: true })
     window.addEventListener('pointermove', onPointerMove, { capture: true })
     window.addEventListener('pointerup', end, { capture: true })
     window.addEventListener('pointercancel', end, { capture: true })
     return () => {
       window.removeEventListener('touchstart', markTouch, { capture: true })
-      el.removeEventListener('mousedown', markReal, { capture: true })
+      el.removeEventListener('mousedown', swallowRealMouse, { capture: true })
+      el.removeEventListener('mousemove', swallowRealMouse, { capture: true })
+      el.removeEventListener('mouseup', swallowRealMouse, { capture: true })
       el.removeEventListener('pointerdown', onPointerDown, { capture: true })
       window.removeEventListener('pointermove', onPointerMove, { capture: true })
       window.removeEventListener('pointerup', end, { capture: true })
