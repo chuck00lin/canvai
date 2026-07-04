@@ -649,6 +649,29 @@ body {
   white-space: nowrap;
 }
 
+.ps-colordot {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px var(--hair);
+  padding: 0;
+  margin: 7px 4px;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.ps-colordot:active {
+  transform: scale(1.15);
+}
+
+.ps-colordot-none {
+  background: #fff;
+  color: var(--muted);
+}
+
 /* ── phone editor modal ── */
 .ps-modal {
   position: fixed;

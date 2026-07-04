@@ -15,7 +15,7 @@ import {
 } from '@xyflow/react'
 import { api, type Mutation } from '../api'
 import { BoardActions, EditRequest, type BoardActionsValue, type EditRequestValue } from './actions'
-import { absolutePosition, colorOf, toFlow, type PSFlowNode } from './mapping'
+import { absolutePosition, CANVAS_COLORS, colorOf, toFlow, type PSFlowNode } from './mapping'
 import { nodeTypes } from './nodes'
 import { useLongPress } from './useLongPress'
 import { COARSE_QUERY, useMediaQuery } from '../useMediaQuery'
@@ -49,13 +49,23 @@ function BoardInner({ path, changeSignal }: Props) {
   const [selection, setSelection] = useState<{ nodes: string[]; edges: string[] }>({ nodes: [], edges: [] })
   const [connectFrom, setConnectFrom] = useState<string | null>(null)
   const [editReq, setEditReq] = useState<EditRequestValue>({ id: '', seq: 0 })
+  // toolbar shows the color palette instead of actions
+  const [colorMode, setColorMode] = useState(false)
 
   const load = useCallback(async () => {
     try {
       const { data, pinned } = await api.board(path)
       const mapped = toFlow(data, new Set(pinned))
-      setNodes(mapped.nodes)
-      setEdges(mapped.edges)
+      // selection survives sync reloads — e.g. picking a color triggers a
+      // board_changed, and losing selection would close the toolbar mid-use
+      setNodes((previous) => {
+        const selected = new Set(previous.filter((n) => n.selected).map((n) => n.id))
+        return mapped.nodes.map((n) => (selected.has(n.id) ? { ...n, selected: true } : n))
+      })
+      setEdges((previous) => {
+        const selected = new Set(previous.filter((e) => e.selected).map((e) => e.id))
+        return mapped.edges.map((e) => (selected.has(e.id) ? { ...e, selected: true } : e))
+      })
       setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -271,6 +281,9 @@ function BoardInner({ path, changeSignal }: Props) {
       ? edges.find((e) => e.id === selection.edges[0])
       : undefined
 
+  const selNodeId = selNode?.id
+  useEffect(() => setColorMode(false), [selNodeId])
+
   return (
     <div
       className="ps-board"
@@ -325,11 +338,36 @@ function BoardInner({ path, changeSignal }: Props) {
               <span className="ps-toolbar-hint">點目標卡片完成連線</span>
               <button onClick={() => setConnectFrom(null)}>取消</button>
             </>
+          ) : selNode && colorMode ? (
+            <>
+              <button onClick={() => setColorMode(false)} aria-label="back">
+                ←
+              </button>
+              {Object.entries(CANVAS_COLORS).map(([key, hex]) => (
+                <button
+                  key={key}
+                  className="ps-colordot"
+                  style={{ background: hex }}
+                  onClick={() => mutate([{ kind: 'set_color', id: selNode.id, color: key }])}
+                  aria-label={`color ${key}`}
+                />
+              ))}
+              <button
+                className="ps-colordot ps-colordot-none"
+                onClick={() => mutate([{ kind: 'set_color', id: selNode.id, color: '' }])}
+                aria-label="clear color"
+              >
+                ⊘
+              </button>
+            </>
           ) : selNode ? (
             <>
               {(selNode.type === 'text' || selNode.type === 'group') && (
                 <button onClick={() => setEditReq((r) => ({ id: selNode.id, seq: r.seq + 1 }))}>✏️ 編輯</button>
               )}
+              <button onClick={() => setColorMode(true)} aria-label="card color">
+                🎨
+              </button>
               <button onClick={() => setConnectFrom(selNode.id)}>🔗 連線</button>
               <button
                 className="ps-toolbar-danger"
