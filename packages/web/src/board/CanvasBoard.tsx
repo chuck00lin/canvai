@@ -70,6 +70,40 @@ function BoardInner({ path, changeSignal }: Props) {
     return () => el.removeEventListener('touchmove', onTouchMove)
   }, [coarse])
 
+  // ZOMBIE-DRAG KILLER (field-diagnosed via debugtouch: a node stayed in
+  // .dragging across an entire session). iPad desktop-mode Safari delivers
+  // fingers as MOUSE events; when iOS claims a gesture mid-drag it stops the
+  // stream WITHOUT a mouseup — and the mouse model has no cancel event, so
+  // the d3 drag gesture lives forever, eating every later interaction.
+  // A fresh primary pointerdown while a drag is still "active" is proof the
+  // old gesture died: force-close it with a synthetic mouseup first.
+  useEffect(() => {
+    if (!coarse) return
+    const closeZombie = (event?: PointerEvent) => {
+      if (!document.querySelector('.react-flow__node.dragging')) return
+      window.dispatchEvent(
+        new MouseEvent('mouseup', {
+          bubbles: true,
+          view: window,
+          clientX: event?.clientX ?? 0,
+          clientY: event?.clientY ?? 0,
+        }),
+      )
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.isPrimary) closeZombie(event)
+    }
+    const onHide = () => closeZombie()
+    window.addEventListener('pointerdown', onPointerDown, { capture: true })
+    window.addEventListener('blur', onHide)
+    document.addEventListener('visibilitychange', onHide)
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, { capture: true })
+      window.removeEventListener('blur', onHide)
+      document.removeEventListener('visibilitychange', onHide)
+    }
+  }, [coarse])
+
   // remote diagnostics: open /?token=…&debugtouch — events show on-screen AND
   // stream to the hub (.pairsketch/debug.jsonl) so gesture bugs on real
   // devices can be read server-side (emulators don't reproduce iOS arbitration)
