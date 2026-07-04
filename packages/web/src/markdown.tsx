@@ -36,8 +36,10 @@ function MermaidBlock({ code }: { code: string }) {
   }, [code])
   // NO nodrag here: the diagram often fills the whole card, and users grab
   // the card center to drag — nodrag would leave only the border draggable
-  // (field-tested 2026-07-04: read as "drag is broken/stuck")
-  return <div className="ps-mermaid nowheel" ref={ref} />
+  // (field-tested 2026-07-04: read as "drag is broken/stuck").
+  // NO nowheel either: the div doesn't scroll, and nowheel just made wheel
+  // zoom dead over diagrams on desktop.
+  return <div className="ps-mermaid" ref={ref} />
 }
 
 type Part = { kind: 'md'; html: string } | { kind: 'mermaid'; code: string }

@@ -832,6 +832,19 @@ body {
   touch-action: none;
 }
 
+/* iOS treats overflow:hidden boxes (.ps-md) as SCROLL CONTAINERS: touch-action
+   resolution stops there and never consults the node's touch-action:none, so
+   drags starting on card CONTENT get eaten as scroll attempts. Field
+   signature: center of card = dead, padding edge = smooth, boundary = janky.
+   .ps-file-body is deliberately excluded — it really scrolls. */
+.ps-card,
+.ps-md,
+.ps-md *,
+.ps-mermaid,
+.ps-group {
+  touch-action: none;
+}
+
 /* ── touch-first devices: fatter targets ── */
 @media (pointer: coarse) {
   /* long-press is ours (edit / new card) — not the selection callout's */
