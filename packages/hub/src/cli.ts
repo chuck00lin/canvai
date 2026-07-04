@@ -27,6 +27,8 @@ options:
   --handoff-mode <m>  'spawn' (default) runs a fresh agent turn per handoff;
                    'signal' only broadcasts handoff_requested on /ws, for a
                    long-running session listening with its own context
+  --handoff-timeout <s>  kill a spawned agent turn after this many seconds
+                   (default: 300)
 
 Both modes coordinate through files (.canvas, .pairsketch/) — run them
 side by side, or either one alone.`)
@@ -62,7 +64,9 @@ if (args[0] === 'serve') {
   const token = flag('--token')
   const agentCmd = flag('--agent-cmd')
   const handoffMode = flag('--handoff-mode') === 'signal' ? ('signal' as const) : undefined
-  const running = await startServe(root, { port, host, token, agentCmd, handoffMode })
+  const handoffTimeout = flag('--handoff-timeout')
+  const handoffTimeoutMs = handoffTimeout ? Number(handoffTimeout) * 1000 : undefined
+  const running = await startServe(root, { port, host, token, agentCmd, handoffMode, handoffTimeoutMs })
   console.error(`pairsketch hub: serving ${root}`)
   const suffix = token ? `/?token=${encodeURIComponent(token)}` : '/'
   for (const address of host === '0.0.0.0' ? reachableAddresses() : [host]) {

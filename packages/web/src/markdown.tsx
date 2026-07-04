@@ -37,34 +37,38 @@ function MermaidBlock({ code }: { code: string }) {
   return <div className="ps-mermaid nodrag nowheel" ref={ref} />
 }
 
-type Part = { kind: 'md' | 'mermaid'; src: string }
+type Part = { kind: 'md'; html: string } | { kind: 'mermaid'; code: string }
 
-function splitMermaid(text: string): Part[] {
+/** split ```mermaid fences out; parse+sanitize the rest to HTML up front */
+function parseParts(text: string): Part[] {
+  const md = (src: string): Part => ({
+    kind: 'md',
+    html: DOMPurify.sanitize(marked.parse(src, { async: false }) as string),
+  })
   const parts: Part[] = []
   const fence = /```mermaid\s*\n([\s\S]*?)```/g
   let last = 0
   for (let m = fence.exec(text); m; m = fence.exec(text)) {
-    if (m.index > last) parts.push({ kind: 'md', src: text.slice(last, m.index) })
-    parts.push({ kind: 'mermaid', src: m[1] ?? '' })
+    if (m.index > last) parts.push(md(text.slice(last, m.index)))
+    parts.push({ kind: 'mermaid', code: m[1] ?? '' })
     last = fence.lastIndex
   }
-  if (last < text.length) parts.push({ kind: 'md', src: text.slice(last) })
-  return parts.length > 0 ? parts : [{ kind: 'md', src: '' }]
+  if (last < text.length) parts.push(md(text.slice(last)))
+  return parts.length > 0 ? parts : [md('')]
 }
 
 /** Markdown card body; ```mermaid fences render as live diagrams (design D2). */
 export function Markdown({ text }: { text: string }) {
-  const parts = useMemo(() => splitMermaid(text), [text])
+  // parse once per text change — a dragged node re-renders every pointer
+  // frame, and markdown parsing at frame rate janks the drag on phones
+  const parts = useMemo(() => parseParts(text), [text])
   return (
     <div className="ps-md">
       {parts.map((part, index) =>
         part.kind === 'mermaid' ? (
-          <MermaidBlock key={index} code={part.src} />
+          <MermaidBlock key={index} code={part.code} />
         ) : (
-          <div
-            key={index}
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(marked.parse(part.src, { async: false }) as string) }}
-          />
+          <div key={index} dangerouslySetInnerHTML={{ __html: part.html }} />
         ),
       )}
     </div>

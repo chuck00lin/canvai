@@ -298,6 +298,9 @@ function BoardInner({ path, changeSignal }: Props) {
             onPaneClick={onPaneClick}
             deleteKeyCode={['Backspace', 'Delete']}
             connectionRadius={44}
+            // the attribution link hijacks long-presses near the corner on
+            // touch; React Flow is credited in the README instead
+            proOptions={{ hideAttribution: true }}
             // touch: a tap with slight jitter must select, not micro-drag (drag = pin)
             nodeDragThreshold={coarse ? 8 : 1}
             fitView

@@ -62,7 +62,7 @@ export interface ChatMessage {
 }
 
 export type HubMessage =
-  | { type: 'hello'; active: string | null }
+  | { type: 'hello'; active: string | null; busy?: boolean }
   | { type: 'boards_changed' }
   | { type: 'board_changed'; board: string }
   | { type: 'active_changed'; active: string | null }

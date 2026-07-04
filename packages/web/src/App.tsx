@@ -62,7 +62,12 @@ export function App() {
         if (message.type === 'active_changed' && message.active && message.active !== previous) {
           setCurrent(message.active)
         }
-        if (message.type === 'hello') setCurrent((existing) => existing ?? message.active)
+        if (message.type === 'hello') {
+          setCurrent((existing) => existing ?? message.active)
+          // resync: handoff done/error broadcasts missed while disconnected
+          // would otherwise leave the busy indicator stuck on
+          setAgentBusy(!!message.busy)
+        }
       }
       if (message.type === 'chat_changed') {
         setChatSignal((n) => n + 1)

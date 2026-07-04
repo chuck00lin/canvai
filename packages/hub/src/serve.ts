@@ -28,6 +28,8 @@ export interface ServeOptions {
   token?: string
   /** command template for the handoff button, e.g. 'claude -p {prompt}' */
   agentCmd?: string
+  /** kill a spawned handoff turn after this long (default 300 000 ms) */
+  handoffTimeoutMs?: number
   /**
    * 'spawn' (default): the handoff button spawns a fresh agent turn.
    * 'signal': only broadcast handoff_requested over the WebSocket — for when
@@ -170,6 +172,7 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
 
   const summoner = createSummoner(root, {
     agentCmd: options.agentCmd,
+    timeoutMs: options.handoffTimeoutMs,
     onStatus: (status) => broadcast({ type: 'handoff', status }),
   })
 
@@ -344,7 +347,9 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
     socket.on('close', () => wssClients.delete(socket))
     void (async () => {
       const active = await getActiveBoard(root)
-      socket.send(JSON.stringify({ type: 'hello', active: active ?? null }))
+      // busy: reconnecting clients missed handoff broadcasts while away —
+      // without this a stale 思考中 indicator survives forever
+      socket.send(JSON.stringify({ type: 'hello', active: active ?? null, busy: summoner.running }))
     })()
   })
 
