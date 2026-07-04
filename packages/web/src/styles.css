@@ -203,6 +203,23 @@ body {
   max-width: 70%;
 }
 
+/* ?debugtouch remote-diagnostics readout */
+.ps-debug {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 50;
+  margin: 0;
+  padding: 8px 10px;
+  background: rgba(20, 24, 28, 0.88);
+  color: #9fe8c0;
+  font: 10px/1.5 ui-monospace, Menlo, monospace;
+  border-radius: 8px;
+  pointer-events: none;
+  max-width: 70vw;
+  white-space: pre-wrap;
+}
+
 /* ── nodes ── */
 .ps-card {
   position: relative;

@@ -51,6 +51,51 @@ function BoardInner({ path, changeSignal }: Props) {
   const [editReq, setEditReq] = useState<EditRequestValue>({ id: '', seq: 0 })
   // toolbar shows the color palette instead of actions
   const [colorMode, setColorMode] = useState(false)
+  const boardRef = useRef<HTMLDivElement>(null)
+
+  // WebKit ignores touch-action on descendants of CSS-transformed ancestors
+  // (every card lives inside the transformed viewport) — CSS alone leaves
+  // iOS free to claim moves that start on card content. JS fallback: any
+  // touch sequence that began on a node is ours; preventDefault its moves.
+  useEffect(() => {
+    if (!coarse) return
+    const el = boardRef.current
+    if (!el) return
+    const onTouchMove = (event: TouchEvent) => {
+      if (event.cancelable && (event.target as HTMLElement).closest?.('.react-flow__node')) {
+        event.preventDefault()
+      }
+    }
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    return () => el.removeEventListener('touchmove', onTouchMove)
+  }, [coarse])
+
+  // remote diagnostics: open /?token=…&debugtouch to get a live event readout
+  // on-device (emulators do not reproduce iOS gesture arbitration)
+  const [debugLines, setDebugLines] = useState<string[]>([])
+  const debugTouch = useMemo(() => new URLSearchParams(window.location.search).has('debugtouch'), [])
+  useEffect(() => {
+    if (!debugTouch) return
+    const el = boardRef.current
+    if (!el) return
+    const push = (line: string) =>
+      setDebugLines((prev) => [...prev.slice(-11), `${new Date().toISOString().slice(17, 23)} ${line}`])
+    const label = (t: EventTarget | null) =>
+      ((t as HTMLElement)?.className?.toString().split(' ').slice(0, 2).join('.') ?? '?').slice(0, 28)
+    const handlers: Array<[string, (e: Event) => void]> = (
+      ['touchstart', 'touchmove', 'touchend', 'touchcancel', 'pointerdown', 'pointercancel'] as const
+    ).map((type) => [
+      type,
+      (e: Event) => {
+        if (type === 'touchmove' && Math.random() > 0.2) return // sample moves
+        push(`${type} @${label(e.target)}${e.defaultPrevented ? ' P' : ''}${(e as TouchEvent).cancelable === false ? ' !c' : ''}`)
+      },
+    ])
+    for (const [type, fn] of handlers) el.addEventListener(type, fn, { capture: true, passive: true })
+    return () => {
+      for (const [type, fn] of handlers) el.removeEventListener(type, fn, { capture: true })
+    }
+  }, [debugTouch])
 
   const load = useCallback(async () => {
     try {
@@ -318,6 +363,7 @@ function BoardInner({ path, changeSignal }: Props) {
 
   return (
     <div
+      ref={boardRef}
       className="ps-board"
       onDoubleClick={onWrapperDoubleClick}
       // long-press must not open the browser context menu / selection callout
@@ -434,6 +480,11 @@ function BoardInner({ path, changeSignal }: Props) {
         </div>
       )}
       {error && <div className="ps-error">{error}</div>}
+      {debugTouch && (
+        <pre className="ps-debug">
+          {debugLines.join('\n') || 'debugtouch: 觸控事件會顯示在這裡'}
+        </pre>
+      )}
     </div>
   )
 }
