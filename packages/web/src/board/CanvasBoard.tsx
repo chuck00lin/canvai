@@ -301,8 +301,10 @@ function BoardInner({ path, changeSignal }: Props) {
             // the attribution link hijacks long-presses near the corner on
             // touch; React Flow is credited in the README instead
             proOptions={{ hideAttribution: true }}
-            // touch: a tap with slight jitter must select, not micro-drag (drag = pin)
-            nodeDragThreshold={coarse ? 8 : 1}
+            // touch: a tap with slight jitter must select, not micro-drag
+            // (drag = pin) — but keep the dead zone small or drag starts
+            // feel sticky
+            nodeDragThreshold={coarse ? 5 : 1}
             fitView
             minZoom={0.05}
             zoomOnDoubleClick={false}

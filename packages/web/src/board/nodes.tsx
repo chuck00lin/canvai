@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { memo, useContext, useEffect, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Handle, NodeResizer, Position, type NodeProps, type NodeTypes } from '@xyflow/react'
 import { api } from '../api'
@@ -276,9 +276,11 @@ function GroupNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   )
 }
 
+// memo: board reloads and selection changes hand every node a fresh props
+// object — without memo each one re-renders its full markdown body
 export const nodeTypes: NodeTypes = {
-  text: TextNode,
-  file: FileNode,
-  link: LinkNode,
-  group: GroupNode,
+  text: memo(TextNode),
+  file: memo(FileNode),
+  link: memo(LinkNode),
+  group: memo(GroupNode),
 }

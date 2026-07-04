@@ -711,6 +711,14 @@ body {
   font-weight: 600;
 }
 
+/* dragged/selected cards get their own compositor layer: without it, mobile
+   Safari repaints heavy card content (large mermaid SVGs) on every transform
+   frame — the classic "drag stutters on the big card" failure */
+.react-flow__node.dragging,
+.react-flow__node.selected {
+  will-change: transform;
+}
+
 /* ── touch-first devices: fatter targets ── */
 @media (pointer: coarse) {
   /* long-press is ours (edit / new card) — not the selection callout's */
