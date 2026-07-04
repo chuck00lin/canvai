@@ -807,6 +807,18 @@ body {
   will-change: transform;
 }
 
+/* React Flow only puts touch-action:none on the PANE. Without it on nodes,
+   iOS claims a touch-move starting on card content as a native scroll and
+   fires pointercancel — drags die from the card center ("only the border
+   drags") and resize grips never move. Tell iOS these handle their own touches. */
+/* React Flow puts touch-action:none inline on nodes, but NOT on handles or
+   resize controls — without it iOS claims those touch-moves as native
+   scrolling (pointercancel) and resize grips never move */
+.react-flow__handle,
+.react-flow__resize-control {
+  touch-action: none;
+}
+
 /* ── touch-first devices: fatter targets ── */
 @media (pointer: coarse) {
   /* long-press is ours (edit / new card) — not the selection callout's */
@@ -816,33 +828,21 @@ body {
     -webkit-touch-callout: none;
   }
 
-  /* connection handles: 28px finger target, slim 12px visible dot */
+  /* connection handles: modest visible dot, finger-sized hit area via a
+     ::before halo. Do NOT override the handle's transform/size aggressively:
+     that fights React Flow's own positioning and killed node drags at low
+     zoom (2026-07-04 bisect). */
   .ps-handle {
-    width: 28px;
-    height: 28px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
-    background: transparent;
-    border: none;
-    transform: none;
   }
 
-  .ps-handle::after {
+  .ps-handle::before {
     content: '';
     position: absolute;
-    inset: 8px;
+    inset: -8px;
     border-radius: 50%;
-    background: var(--accent);
-    border: 2px solid #fff;
-  }
-
-  .ps-handle.connectingto::after {
-    background: #e0ac00;
-    transform: scale(1.4);
-  }
-
-  .ps-handle.valid::after {
-    background: #08b94e;
-    transform: scale(1.4);
   }
 
   .ps-card .ps-handle,
@@ -854,25 +854,21 @@ body {
     opacity: 1;
   }
 
-  /* resize: finger-sized corner targets straddling the corner (half OUTSIDE
-     the card — the Figma/Miro pattern), drawing a smaller visible grip.
-     Corners = resize; side midpoints = connection handles. */
+  /* resize grips: 18px visible, ~38px effective touch target via a ::before
+     halo. They render OUTSIDE .ps-card in the DOM (see nodes.tsx) — the
+     card's overflow:hidden used to clip them half away, which killed touch
+     resize entirely. Corners = resize; side midpoints = connection handles. */
   .react-flow__resize-control.handle {
-    width: 38px;
-    height: 38px;
-    background: transparent;
-    border: none;
-    border-radius: 0;
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+    border-width: 2px;
   }
 
-  .react-flow__resize-control.handle::after {
+  .react-flow__resize-control.handle::before {
     content: '';
     position: absolute;
-    inset: 10px;
-    background: #fff;
-    border: 2.5px solid var(--accent);
-    border-radius: 6px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    inset: -10px;
   }
 }
 

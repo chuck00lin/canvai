@@ -143,39 +143,46 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   const press = useLongPress({ onDoubleTap: begin })
 
   return (
-    <div
-      className={`ps-card ps-text${selected ? ' is-selected' : ''}`}
-      style={tintStyle(node.color)}
-      onDoubleClick={(event) => {
-        event.stopPropagation()
-        begin()
-      }}
-      {...press}
-    >
+    // resizer + handles live OUTSIDE the card div: .ps-card clips overflow,
+    // which cut the corner grips in half — visually AND for hit-testing
+    // (touch resize was dead since Phase 1 because of this)
+    <div className={selected ? 'is-selected' : undefined} style={{ width: '100%', height: '100%' }}>
       <NodeResizer
         isVisible={!!selected}
+        handleClassName="nopan"
+        lineClassName="nopan"
         minWidth={120}
         minHeight={48}
         onResizeEnd={(_, params) => commitGeometry(id, params)}
       />
       <Sides />
-      <Pin pinned={data.pinned} />
-      {editing && !phone ? (
-        <textarea
-          className="ps-editor nodrag nowheel"
-          autoFocus
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={() => finish(true)}
-          onKeyDown={onKeyDown}
-          placeholder="markdown — ```mermaid fences render as diagrams"
-        />
-      ) : (
-        <Markdown text={node.text ?? ''} />
-      )}
-      {editing && phone && (
-        <PhoneEditor draft={draft} setDraft={setDraft} onCancel={() => finish(false)} onSave={() => finish(true)} />
-      )}
+      <div
+        className={`ps-card ps-text${selected ? ' is-selected' : ''}`}
+        style={tintStyle(node.color)}
+        onDoubleClick={(event) => {
+          event.stopPropagation()
+          begin()
+        }}
+        {...press}
+      >
+        <Pin pinned={data.pinned} />
+        {editing && !phone ? (
+          <textarea
+            className="ps-editor nodrag nowheel"
+            autoFocus
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={() => finish(true)}
+            onKeyDown={onKeyDown}
+            placeholder="markdown — ```mermaid fences render as diagrams"
+          />
+        ) : (
+          <Markdown text={node.text ?? ''} />
+        )}
+        {editing && phone && (
+          <PhoneEditor draft={draft} setDraft={setDraft} onCancel={() => finish(false)} onSave={() => finish(true)} />
+        )}
+      </div>
     </div>
   )
 }
@@ -208,21 +215,23 @@ function FileNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   }, [file, ext])
 
   return (
-    <div className={`ps-card ps-file${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)}>
-      <NodeResizer isVisible={!!selected} minWidth={120} minHeight={40} onResizeEnd={(_, p) => commitGeometry(id, p)} />
+    <div className={selected ? 'is-selected' : undefined} style={{ width: '100%', height: '100%' }}>
+      <NodeResizer isVisible={!!selected} handleClassName="nopan" lineClassName="nopan" minWidth={120} minHeight={40} onResizeEnd={(_, p) => commitGeometry(id, p)} />
       <Sides />
-      <Pin pinned={data.pinned} />
-      <div className="ps-file-head">
-        <span className="ps-file-icon">📄</span>
-        <span className="ps-file-path">
-          {file}
-          {typeof node.subpath === 'string' ? node.subpath : ''}
-        </span>
-      </div>
-      <div className="ps-file-body nowheel">
-        {IMAGE_EXTS.has(ext) && <img src={api.fileRawUrl(file)} alt={file} />}
-        {TEXT_EXTS.has(ext) && content !== null && <Markdown text={content} />}
-        {loadError && <div className="ps-file-error">{loadError}</div>}
+      <div className={`ps-card ps-file${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)}>
+        <Pin pinned={data.pinned} />
+        <div className="ps-file-head">
+          <span className="ps-file-icon">📄</span>
+          <span className="ps-file-path">
+            {file}
+            {typeof node.subpath === 'string' ? node.subpath : ''}
+          </span>
+        </div>
+        <div className="ps-file-body nowheel">
+          {IMAGE_EXTS.has(ext) && <img src={api.fileRawUrl(file)} alt={file} />}
+          {TEXT_EXTS.has(ext) && content !== null && <Markdown text={content} />}
+          {loadError && <div className="ps-file-error">{loadError}</div>}
+        </div>
       </div>
     </div>
   )
@@ -232,13 +241,15 @@ function LinkNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   const { commitGeometry } = useContext(BoardActions)
   const node = data.node
   return (
-    <div className={`ps-card ps-link${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)}>
-      <NodeResizer isVisible={!!selected} minWidth={120} minHeight={40} onResizeEnd={(_, p) => commitGeometry(id, p)} />
+    <div className={selected ? 'is-selected' : undefined} style={{ width: '100%', height: '100%' }}>
+      <NodeResizer isVisible={!!selected} handleClassName="nopan" lineClassName="nopan" minWidth={120} minHeight={40} onResizeEnd={(_, p) => commitGeometry(id, p)} />
       <Sides />
-      <Pin pinned={data.pinned} />
-      <a href={node.url} target="_blank" rel="noreferrer" className="nodrag">
-        🔗 {node.url}
-      </a>
+      <div className={`ps-card ps-link${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)}>
+        <Pin pinned={data.pinned} />
+        <a href={node.url} target="_blank" rel="noreferrer" className="nodrag">
+          🔗 {node.url}
+        </a>
+      </div>
     </div>
   )
 }
@@ -262,7 +273,7 @@ function GroupNode({ id, data, selected }: NodeProps<PSFlowNode>) {
 
   return (
     <div className={`ps-group${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)} {...press}>
-      <NodeResizer isVisible={!!selected} minWidth={160} minHeight={120} onResizeEnd={(_, p) => commitGeometry(id, p)} />
+      <NodeResizer isVisible={!!selected} handleClassName="nopan" lineClassName="nopan" minWidth={160} minHeight={120} onResizeEnd={(_, p) => commitGeometry(id, p)} />
       <Sides />
       <Pin pinned={data.pinned} />
       {editing ? (
