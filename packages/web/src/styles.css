@@ -939,8 +939,8 @@ body {
   }
 }
 
-/* ── phone layout: canvas owns the screen, panels are overlays ── */
-@media (max-width: 767px) {
+/* ── canvas-first layout (phones + tablets): canvas owns the screen ── */
+@media (max-width: 1024px) {
   .ps-app.is-mobile {
     display: block;
     position: relative;
