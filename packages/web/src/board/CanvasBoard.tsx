@@ -160,7 +160,10 @@ function BoardInner({ path, changeSignal }: Props) {
       mutate(changed.map(([id, pos]) => ({ kind: 'set_geometry', id, x: pos.x, y: pos.y })))
       if (pendingReload.current) {
         pendingReload.current = false
-        void load()
+        // if we just committed moves, loading NOW would fetch pre-commit
+        // state and visually snap the card back ("card jumped/disappeared") —
+        // our own mutate broadcasts board_changed and refreshes with truth
+        if (changed.length === 0) void load()
       }
     },
     [mutate, load],

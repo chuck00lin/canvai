@@ -215,6 +215,14 @@ body {
   padding: 8px 10px;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  cursor: grab;
+}
+
+/* grab feedback: the instant a drag engages, the card visibly lifts —
+   answers "did I grab it?" without any hover affordance */
+.react-flow__node.dragging .ps-card,
+.react-flow__node.dragging .ps-group {
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
 }
 
 .ps-card.is-selected {
@@ -799,12 +807,17 @@ body {
   font-weight: 600;
 }
 
-/* dragged/selected cards get their own compositor layer: without it, mobile
-   Safari repaints heavy card content (large mermaid SVGs) on every transform
-   frame — the classic "drag stutters on the big card" failure */
-.react-flow__node.dragging,
-.react-flow__node.selected {
-  will-change: transform;
+/* NO will-change here: iOS Safari blanks large promoted layers mid-gesture
+   (field report: card disappears while dragging). The original jank it was
+   meant to fix turned out to be the nodrag-clipping bug, not paint cost. */
+
+/* iOS native drag-and-drop lifts links/images out of the page on touch-drag
+   — the card content flies off as a ghost instead of moving the card */
+.ps-md a,
+.ps-md img,
+.ps-file-body img,
+.ps-link a {
+  -webkit-user-drag: none;
 }
 
 /* React Flow only puts touch-action:none on the PANE. Without it on nodes,
