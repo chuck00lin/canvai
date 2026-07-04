@@ -7,21 +7,42 @@ interface Props {
   signal: number
   /** true while an agent turn is running */
   agentBusy: boolean
+  /** hub WebSocket connectivity — the user's trust anchor */
+  wsUp: boolean
   /** phone: the panel is a bottom sheet; this drives its visibility */
   open?: boolean
   /** phone: render a close button (presence marks sheet mode) */
   onClose?: () => void
 }
 
+function Elapsed({ since }: { since: number }) {
+  const [, force] = useState(0)
+  useEffect(() => {
+    const timer = window.setInterval(() => force((n) => n + 1), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+  const seconds = Math.max(0, Math.floor((Date.now() - since) / 1000))
+  const m = Math.floor(seconds / 60)
+  const s = String(seconds % 60).padStart(2, '0')
+  return <span className="ps-elapsed">{m > 0 ? `${m}m${s}s` : `${seconds}s`}</span>
+}
+
 /**
  * The text side-channel. Prose lives here instead of becoming cards; sending
  * a message hands the turn to the agent (that's the natural expectation of a
  * chat box). The board stays the curated artifact.
+ *
+ * Status discipline (the loop must never feel like a black box):
+ * 已送出 ⏳ → agent 收到 🤖(思考中 + elapsed) → reply lands. If the pickup
+ * signal doesn't arrive, say so instead of leaving a dead spinner.
  */
-export function ChatPanel({ signal, agentBusy, open, onClose }: Props) {
+export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
+  // set when 交棒 is sent; cleared when the busy signal (or a reply) arrives
+  const [handoffSentAt, setHandoffSentAt] = useState<number | null>(null)
+  const [busySince, setBusySince] = useState<number | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(() => {
@@ -35,8 +56,31 @@ export function ChatPanel({ signal, agentBusy, open, onClose }: Props) {
   }, [load, signal])
 
   useEffect(() => {
+    if (agentBusy) {
+      setBusySince((existing) => existing ?? Date.now())
+      setHandoffSentAt(null) // picked up — the ack pending state is over
+    } else {
+      setBusySince(null)
+    }
+  }, [agentBusy])
+
+  // a fresh agent reply also resolves the pending state (belt & suspenders)
+  const lastAgentId = messages.filter((m) => m.from === 'agent').at(-1)?.id
+  useEffect(() => {
+    if (lastAgentId) setHandoffSentAt(null)
+  }, [lastAgentId])
+
+  // re-render once past the ack window so the warning can appear
+  const [, bumpAck] = useState(0)
+  useEffect(() => {
+    if (handoffSentAt === null) return
+    const timer = window.setTimeout(() => bumpAck((n) => n + 1), 12_500)
+    return () => window.clearTimeout(timer)
+  }, [handoffSentAt])
+
+  useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight })
-  }, [messages, agentBusy, open])
+  }, [messages, agentBusy, handoffSentAt, open])
 
   const send = useCallback(
     async (alsoHandoff: boolean) => {
@@ -47,7 +91,10 @@ export function ChatPanel({ signal, agentBusy, open, onClose }: Props) {
           await api.postChat(text)
           setDraft('')
         }
-        if (alsoHandoff && !agentBusy) await api.handoff()
+        if (alsoHandoff && !agentBusy) {
+          await api.handoff()
+          setHandoffSentAt(Date.now())
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
       }
@@ -64,12 +111,17 @@ export function ChatPanel({ signal, agentBusy, open, onClose }: Props) {
     }
   }
 
+  const ackOverdue = handoffSentAt !== null && Date.now() - handoffSentAt > 12_000
+
   return (
     <aside className={`ps-chat${open ? ' is-open' : ''}`}>
       <header className="ps-chat-head">
-        <span>chat</span>
+        <span>
+          <i className={`ps-live${wsUp ? ' is-up' : ''}`} title={wsUp ? '已連線' : '重新連線中…'} />
+          chat
+        </span>
         <span className="ps-chat-head-right">
-          {agentBusy && <span className="ps-chat-busy">🤖 思考中…</span>}
+          {!wsUp && <span className="ps-chat-reconnect">重新連線中…</span>}
           {onClose && (
             <button className="ps-chat-close" onClick={onClose} aria-label="close chat">
               ✕
@@ -89,6 +141,18 @@ export function ChatPanel({ signal, agentBusy, open, onClose }: Props) {
           </div>
         ))}
         {messages.length === 0 && <div className="ps-chat-empty">文字走這裡，空間思考留在板上。Enter 送出＝交棒給 agent。</div>}
+        {agentBusy && busySince !== null && (
+          <div className="ps-status">
+            <span className="ps-chat-busy">🤖 思考中…</span> <Elapsed since={busySince} />
+            <span className="ps-status-hint">（工作回合可能要幾分鐘，回覆會直接出現在這裡）</span>
+          </div>
+        )}
+        {!agentBusy && handoffSentAt !== null && !ackOverdue && <div className="ps-status">⏳ 已交棒，等待 agent 接手…</div>}
+        {!agentBusy && ackOverdue && (
+          <div className="ps-status ps-status-warn">
+            ⚠ 交棒尚未被接手（{wsUp ? 'agent 可能正忙著別的回合，訊息已排隊' : '連線中斷，恢復後會補送狀態'}）
+          </div>
+        )}
       </div>
       {error && <div className="ps-chat-error">{error}</div>}
       <footer className="ps-chat-input">
@@ -103,7 +167,7 @@ export function ChatPanel({ signal, agentBusy, open, onClose }: Props) {
             只送出
           </button>
           <button className="ps-primary" onClick={() => void send(true)} disabled={agentBusy} title="呼叫一個 agent 回合（會讀 chat、events 與 active board）">
-            {draft.trim() === '' ? '交棒 🤖' : '送出＋交棒 🤖'}
+            {agentBusy ? '🤖 思考中…' : draft.trim() === '' ? '交棒 🤖' : '送出＋交棒 🤖'}
           </button>
         </div>
       </footer>

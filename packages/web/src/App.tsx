@@ -18,6 +18,7 @@ export function App() {
   const [chatSignal, setChatSignal] = useState(0)
   const [agentBusy, setAgentBusy] = useState(false)
   const [offline, setOffline] = useState(false)
+  const [wsUp, setWsUp] = useState(false)
   const phone = useMediaQuery(PHONE_QUERY)
   // on phones the sidebar and chat are overlays; the canvas owns the screen
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -45,6 +46,19 @@ export function App() {
       setOffline(true)
     }
   }, [])
+
+  // returning from background (mobile browsers freeze tabs): the socket may
+  // be dead for seconds and everything on screen is stale — refetch eagerly
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      void refreshBoards()
+      setChangeSignal((n) => n + 1)
+      setChatSignal((n) => n + 1)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [refreshBoards])
 
   useEffect(() => {
     void refreshBoards()
@@ -74,7 +88,7 @@ export function App() {
         if (!chatOpenRef.current) setChatUnread(true)
       }
       if (message.type === 'handoff') setAgentBusy(message.status === 'started')
-    })
+    }, setWsUp)
   }, [refreshBoards])
 
   const newBoard = async () => {
@@ -104,7 +118,14 @@ export function App() {
           <button className="ps-iconbtn" onClick={() => setDrawerOpen(true)} aria-label="boards">
             ☰
           </button>
-          <div className="ps-topbar-title">{current ? current.replace(/\.canvas$/, '') : 'pairsketch'}</div>
+          <div className="ps-topbar-title">
+            <i
+              className={`ps-live${wsUp ? ' is-up' : ''}`}
+              title={wsUp ? '已連線' : '重新連線中…'}
+              aria-label={wsUp ? 'connected' : 'reconnecting'}
+            />
+            {current ? current.replace(/\.canvas$/, '') : 'pairsketch'}
+          </div>
           {agentBusy && <span className="ps-topbar-busy">🤖</span>}
           <button className="ps-iconbtn" onClick={openChat} aria-label="chat">
             💬{chatUnread && <i className="ps-dot" />}
@@ -188,6 +209,7 @@ export function App() {
       <ChatPanel
         signal={chatSignal}
         agentBusy={agentBusy}
+        wsUp={wsUp}
         open={chatOpen}
         onClose={phone ? () => setChatOpen(false) : undefined}
       />

@@ -132,7 +132,10 @@ export const api = {
 }
 
 /** Auto-reconnecting hub socket. Returns a cleanup function. */
-export function connectHub(onMessage: (message: HubMessage) => void): () => void {
+export function connectHub(
+  onMessage: (message: HubMessage) => void,
+  onState?: (connected: boolean) => void,
+): () => void {
   let socket: WebSocket | undefined
   let closed = false
   let retry: ReturnType<typeof setTimeout> | undefined
@@ -142,6 +145,7 @@ export function connectHub(onMessage: (message: HubMessage) => void): () => void
     const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
     const auth = TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : ''
     socket = new WebSocket(`${protocol}://${location.host}/ws${auth}`)
+    socket.onopen = () => onState?.(true)
     socket.onmessage = (event) => {
       try {
         onMessage(JSON.parse(String(event.data)) as HubMessage)
@@ -150,6 +154,7 @@ export function connectHub(onMessage: (message: HubMessage) => void): () => void
       }
     }
     socket.onclose = () => {
+      onState?.(false)
       if (!closed) retry = setTimeout(open, 2000)
     }
   }

@@ -467,6 +467,55 @@ body {
   gap: 10px;
 }
 
+/* connection dot: the user's trust anchor for "is anything alive?" */
+.ps-live {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e0ac00;
+  margin-right: 7px;
+  vertical-align: 1px;
+  animation: ps-pulse 1.4s ease-in-out infinite;
+}
+
+.ps-live.is-up {
+  background: #08b94e;
+  animation: none;
+}
+
+.ps-chat-reconnect {
+  font-weight: 400;
+  font-size: 12px;
+  color: #a06a00;
+}
+
+/* status lines in the chat stream (busy / pending handoff) */
+.ps-status {
+  align-self: center;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12.5px;
+  padding: 4px 10px;
+  line-height: 1.7;
+}
+
+.ps-status-warn {
+  color: #a06a00;
+}
+
+.ps-status-hint {
+  display: block;
+  font-size: 11.5px;
+  opacity: 0.85;
+}
+
+.ps-elapsed {
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .ps-chat-close {
   border: none;
   background: transparent;
