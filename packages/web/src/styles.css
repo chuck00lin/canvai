@@ -165,6 +165,13 @@ body {
 /* ── board ── */
 .ps-main {
   min-width: 0;
+  /* contain the canvas: without this, cards dragged past the column edge
+     paint UNDER the chat/sidebar columns — invisible there, and presses on
+     the overlapped part hit the panel instead of the card (replay-audit
+     finding: the "ungrabbable card" zone). Clipped is honest: the card
+     visibly slides out of view and panning brings it back. */
+  overflow: hidden;
+  position: relative;
 }
 
 .ps-board {
