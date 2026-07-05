@@ -51,7 +51,6 @@ function BoardInner({ path, changeSignal }: Props) {
   // the Delete key have no natural touch equivalent
   const coarse = useMediaQuery(COARSE_QUERY)
   const [selection, setSelection] = useState<{ nodes: string[]; edges: string[] }>({ nodes: [], edges: [] })
-  const [connectFrom, setConnectFrom] = useState<string | null>(null)
   const [editReq, setEditReq] = useState<EditRequestValue>({ id: '', seq: 0 })
   // toolbar shows the color palette instead of actions
   const [colorMode, setColorMode] = useState(false)
@@ -557,17 +556,11 @@ function BoardInner({ path, changeSignal }: Props) {
     [coarse, nodes],
   )
 
-  // connect mode (touch): 連線 on the toolbar, then tap the target node.
-  // Otherwise: force-select on click — some iOS tap sequences (e.g. first
-  // tap after the keyboard dismisses) deliver the click without React Flow
+  // force-select on click — some iOS tap sequences (e.g. first tap after
+  // the keyboard dismisses) deliver the click without React Flow
   // registering selection, and the toolbar never appears
   const onNodeClick = useCallback(
     (_event: ReactMouseEvent, node: FlowNode) => {
-      if (connectFrom) {
-        if (node.id !== connectFrom) mutate([{ kind: 'add_edge', from: connectFrom, to: node.id }])
-        setConnectFrom(null)
-        return
-      }
       setNodes((ns) =>
         ns.map((n) =>
           n.id === node.id ? (n.selected ? n : { ...n, selected: true }) : n.selected ? { ...n, selected: false } : n,
@@ -579,10 +572,8 @@ function BoardInner({ path, changeSignal }: Props) {
           : { nodes: [node.id], edges: [] },
       )
     },
-    [connectFrom, mutate, setNodes],
+    [setNodes],
   )
-
-  const onPaneClick = useCallback(() => setConnectFrom(null), [])
 
   const selNode =
     selection.nodes.length === 1 && selection.edges.length === 0
@@ -634,7 +625,6 @@ function BoardInner({ path, changeSignal }: Props) {
             onEdgeDoubleClick={onEdgeDoubleClick}
             onSelectionChange={onSelectionChange}
             onNodeClick={onNodeClick}
-            onPaneClick={onPaneClick}
             // touch: no keyboard delete — the toolbar 🗑 (with confirm) is
             // the delete path; a lingering selection + Backspace was a trap
             deleteKeyCode={coarse ? null : ['Backspace', 'Delete']}
@@ -661,14 +651,9 @@ function BoardInner({ path, changeSignal }: Props) {
       <button className="ps-addcard" onClick={addCard} title="add a text card at the viewport center">
         ＋ card
       </button>
-      {coarse && (connectFrom || selNode || selEdge) && (
+      {coarse && (selNode || selEdge) && (
         <div className="ps-toolbar">
-          {connectFrom ? (
-            <>
-              <span className="ps-toolbar-hint">點目標卡片完成連線</span>
-              <button onClick={() => setConnectFrom(null)}>取消</button>
-            </>
-          ) : selNode && colorMode ? (
+          {selNode && colorMode ? (
             <>
               <button onClick={() => setColorMode(false)} aria-label="back">
                 ←
@@ -706,7 +691,6 @@ function BoardInner({ path, changeSignal }: Props) {
               >
                 {selNode.data.node.discuss === false ? '⏸ 加回討論' : '⏸ 退出討論'}
               </button>
-              <button onClick={() => setConnectFrom(selNode.id)}>🔗 連線</button>
               <button
                 className="ps-toolbar-danger"
                 onClick={() => {
