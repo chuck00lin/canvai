@@ -363,7 +363,18 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
         return sendJson(res, 404, { error: `not found: ${rel}` })
       }
       if (url.searchParams.get('raw') === '1') {
-        res.writeHead(200, { 'content-type': MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream' })
+        // assets/ holds upload-stamped, content-immutable files — let the
+        // browser cache them hard so an image card doesn't re-download on
+        // every select/board-reload (field: "有圖的卡一點擊就重新下載").
+        // Other repo files can change, so they only get revalidation.
+        const relNorm = rel.replace(/\\/g, '/')
+        const cache = relNorm.startsWith('assets/')
+          ? 'public, max-age=31536000, immutable'
+          : 'no-cache'
+        res.writeHead(200, {
+          'content-type': MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream',
+          'cache-control': cache,
+        })
         return void res.end(buffer)
       }
       if (buffer.length > 512 * 1024) return sendJson(res, 413, { error: 'file too large to inline' })
