@@ -14,6 +14,7 @@ export type Mutation =
   | { kind: 'set_label'; id: string; label: string }
   | { kind: 'set_discuss'; id: string; discuss: boolean }
   | { kind: 'add_text_node'; x: number; y: number; text?: string; width?: number; height?: number }
+  | { kind: 'add_file_node'; x: number; y: number; file: string; width?: number; height?: number }
   | { kind: 'add_edge'; from: string; to: string; fromSide?: Side; toSide?: Side; label?: string }
   | { kind: 'delete_node'; id: string }
   | { kind: 'delete_edge'; id: string }
@@ -85,6 +86,21 @@ export function applyMutations(data: CanvasData, mutations: Mutation[]): MutateO
           y: Math.round(m.y),
           width: Math.round(m.width ?? 300),
           height: Math.round(m.height ?? 100),
+        }
+        data.nodes.push(node)
+        movedIds.push(node.id) // human chose the spot — pin it
+        summary.push(`added ${node.id}`)
+        break
+      }
+      case 'add_file_node': {
+        const node: CanvasNode = {
+          id: genId(),
+          type: 'file',
+          file: m.file,
+          x: Math.round(m.x),
+          y: Math.round(m.y),
+          width: Math.round(m.width ?? 360),
+          height: Math.round(m.height ?? 280),
         }
         data.nodes.push(node)
         movedIds.push(node.id) // human chose the spot — pin it

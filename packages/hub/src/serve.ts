@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import { appendFile, readFile } from 'node:fs/promises'
+import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer, WebSocket } from 'ws'
@@ -280,6 +280,37 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
       const message = await appendChat(root, { from: 'human', text: body.text.trim(), board: body.board })
       broadcast({ type: 'chat_changed' })
       return sendJson(res, 200, { ok: true, id: message.id })
+    }
+    if (pathname === '/api/upload' && req.method === 'POST') {
+      // image attachment: raw body (client compresses to ~500KB first) →
+      // assets/<stamp>-<name>. Returns the repo-relative path for a file card.
+      const rawName = url.searchParams.get('name') ?? 'image.jpg'
+      const ext = (rawName.split('.').pop() ?? '').toLowerCase()
+      if (!['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+        return sendJson(res, 400, { error: `unsupported image type ".${ext}"` })
+      }
+      const base = rawName
+        .slice(0, rawName.length - ext.length - 1)
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 40)
+      const chunks: Buffer[] = []
+      let total = 0
+      for await (const chunk of req) {
+        total += (chunk as Buffer).length
+        if (total > 8 * 1024 * 1024) return sendJson(res, 413, { error: 'image too large (8MB cap)' })
+        chunks.push(chunk as Buffer)
+      }
+      if (total === 0) return sendJson(res, 400, { error: 'empty body' })
+      const stamp = new Date()
+        .toISOString()
+        .slice(0, 19)
+        .replace(/[-:T]/g, '')
+      const rel = `assets/${stamp}-${base || 'image'}.${ext}`
+      await mkdir(path.join(root, 'assets'), { recursive: true })
+      await writeFile(path.join(root, rel), Buffer.concat(chunks))
+      return sendJson(res, 200, { ok: true, path: rel })
     }
     if (pathname === '/api/debug' && req.method === 'POST') {
       // ?debugtouch remote diagnostics: the client streams raw touch events

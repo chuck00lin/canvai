@@ -52,6 +52,7 @@ export type Mutation =
   | { kind: 'set_label'; id: string; label: string }
   | { kind: 'set_discuss'; id: string; discuss: boolean }
   | { kind: 'add_text_node'; x: number; y: number; text?: string; width?: number; height?: number }
+  | { kind: 'add_file_node'; x: number; y: number; file: string; width?: number; height?: number }
   | { kind: 'add_edge'; from: string; to: string; fromSide?: string; toSide?: string; label?: string }
   | { kind: 'delete_node'; id: string }
   | { kind: 'delete_edge'; id: string }
@@ -130,6 +131,10 @@ export const api = {
     }).then((r) => json<{ ok: boolean }>(r)),
   file: (path: string) =>
     request(`/api/file?path=${encodeURIComponent(path)}`).then((r) => json<{ path: string; text: string }>(r)),
+  upload: (blob: Blob, name: string) =>
+    request(`/api/upload?name=${encodeURIComponent(name)}`, { method: 'POST', body: blob }).then((r) =>
+      json<{ ok: boolean; path: string }>(r),
+    ),
   fileRawUrl: (path: string) =>
     `/api/file?path=${encodeURIComponent(path)}&raw=1${TOKEN ? `&token=${encodeURIComponent(TOKEN)}` : ''}`,
 }
