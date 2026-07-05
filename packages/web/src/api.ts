@@ -139,6 +139,24 @@ export const api = {
     `/api/file?path=${encodeURIComponent(path)}&raw=1${TOKEN ? `&token=${encodeURIComponent(TOKEN)}` : ''}`,
 }
 
+// photos go into the git repo (assets/) — compress client-side so a 6MB
+// camera shot lands as a few-hundred-KB jpeg. iOS converts HEIC to JPEG on
+// web file inputs, so canvas re-encoding covers everything we accept.
+export async function compressImage(file: File, maxDim = 1600, quality = 0.82): Promise<Blob> {
+  try {
+    const bmp = await createImageBitmap(file)
+    const scale = Math.min(1, maxDim / Math.max(bmp.width, bmp.height))
+    if (scale === 1 && file.size < 500_000) return file
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(bmp.width * scale)
+    canvas.height = Math.round(bmp.height * scale)
+    canvas.getContext('2d')?.drawImage(bmp, 0, 0, canvas.width, canvas.height)
+    return await new Promise((resolve) => canvas.toBlob((b) => resolve(b ?? file), 'image/jpeg', quality))
+  } catch {
+    return file // undecodable in this browser — upload as-is, the hub caps size
+  }
+}
+
 /** Auto-reconnecting hub socket. Returns a cleanup function. */
 export function connectHub(
   onMessage: (message: HubMessage) => void,

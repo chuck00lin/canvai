@@ -331,6 +331,28 @@ body {
   color: inherit;
 }
 
+/* 📎 while editing inline: floats over the textarea's top-right corner */
+.ps-attach {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 3;
+  padding: 3px 8px;
+  border: 1px solid var(--hair);
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* embedded images (![](assets/…) in card markdown) stay inside the card */
+.ps-md img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  display: block;
+}
+
 /* ── groups ── */
 .ps-group {
   position: relative;

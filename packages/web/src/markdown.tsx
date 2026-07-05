@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import mermaid from 'mermaid'
+import { api } from './api'
 
 mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'neutral', suppressErrorRendering: true })
 
@@ -44,11 +45,24 @@ function MermaidBlock({ code }: { code: string }) {
 
 type Part = { kind: 'md'; html: string } | { kind: 'mermaid'; code: string }
 
+// ![](assets/…) in cards points into the hub root — the browser can only
+// fetch it through /api/file (with the token), so rewrite relative img srcs
+const rewriteImages = (html: string): string => {
+  if (!html.includes('<img')) return html
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  for (const img of doc.querySelectorAll('img')) {
+    const src = img.getAttribute('src') ?? ''
+    if (src && !/^(https?:|data:|\/api\/)/.test(src)) img.setAttribute('src', api.fileRawUrl(src))
+    img.setAttribute('loading', 'lazy')
+  }
+  return doc.body.innerHTML
+}
+
 /** split ```mermaid fences out; parse+sanitize the rest to HTML up front */
 function parseParts(text: string): Part[] {
   const md = (src: string): Part => ({
     kind: 'md',
-    html: DOMPurify.sanitize(marked.parse(src, { async: false }) as string),
+    html: rewriteImages(DOMPurify.sanitize(marked.parse(src, { async: false }) as string)),
   })
   const parts: Part[] = []
   const fence = /```mermaid\s*\n([\s\S]*?)```/g

@@ -30,24 +30,6 @@ interface Props {
 // layers (the bridge's swallow) can emit lines without coupling to it
 const debugHook = () => (window as { __psDebugLog?: (line: string) => void }).__psDebugLog
 
-// photos go into the git repo (assets/) — compress client-side so a 6MB
-// camera shot lands as a few-hundred-KB jpeg. iOS converts HEIC to JPEG on
-// web file inputs, so canvas re-encoding covers everything we accept.
-async function compressImage(file: File, maxDim = 1600, quality = 0.82): Promise<Blob> {
-  try {
-    const bmp = await createImageBitmap(file)
-    const scale = Math.min(1, maxDim / Math.max(bmp.width, bmp.height))
-    if (scale === 1 && file.size < 500_000) return file
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.round(bmp.width * scale)
-    canvas.height = Math.round(bmp.height * scale)
-    canvas.getContext('2d')?.drawImage(bmp, 0, 0, canvas.width, canvas.height)
-    return await new Promise((resolve) => canvas.toBlob((b) => resolve(b ?? file), 'image/jpeg', quality))
-  } catch {
-    return file // undecodable in this browser — upload as-is, the hub caps size
-  }
-}
-
 export function CanvasBoard(props: Props) {
   return (
     <ReactFlowProvider>
@@ -626,29 +608,6 @@ function BoardInner({ path, changeSignal }: Props) {
     [],
   )
 
-  // 📎 image attachment: picker → client-side compress → /api/upload →
-  // file card placed beside the card that was selected when 📎 was tapped
-  const imageInputRef = useRef<HTMLInputElement>(null)
-  const attachTargetRef = useRef<PSFlowNode | null>(null)
-  const onImagePicked = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0]
-      event.target.value = '' // same file can be picked again next time
-      const beside = attachTargetRef.current
-      if (!file || !beside) return
-      try {
-        const blob = await compressImage(file)
-        const name = /\.(jpe?g|png|gif|webp)$/i.test(file.name) ? file.name : `${file.name || 'photo'}.jpg`
-        const { path: rel } = await api.upload(blob, name)
-        const n = beside.data.node
-        mutate([{ kind: 'add_file_node', x: n.x + n.width + 40, y: n.y, file: rel, width: 360, height: 280 }])
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
-      }
-    },
-    [mutate],
-  )
-
   // touch: select-then-drag (CEO decision 2026-07-05). A card must be tapped
   // (selected) before it will drag — kills accidental drags while panning,
   // and pairs with the drag shield (nodes.tsx) that puts blank space under
@@ -758,13 +717,6 @@ function BoardInner({ path, changeSignal }: Props) {
       <button className="ps-addcard" onClick={addCard} title="add a text card at the viewport center">
         ＋ card
       </button>
-      <input
-        ref={imageInputRef}
-        type="file"
-        accept="image/*"
-        style={{ display: 'none' }}
-        onChange={(event) => void onImagePicked(event)}
-      />
       {coarse && (selNode || selEdge) && (
         <div className="ps-toolbar">
           {selNode && colorMode ? (
@@ -796,15 +748,6 @@ function BoardInner({ path, changeSignal }: Props) {
               )}
               <button onClick={() => setColorMode(true)} aria-label="card color">
                 🎨
-              </button>
-              <button
-                onClick={() => {
-                  attachTargetRef.current = selNode
-                  imageInputRef.current?.click()
-                }}
-                aria-label="attach an image beside this card"
-              >
-                📎
               </button>
               <button
                 onClick={() =>

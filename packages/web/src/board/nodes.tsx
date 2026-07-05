@@ -1,7 +1,17 @@
-import { memo, useCallback, useContext, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import {
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type CSSProperties,
+  type KeyboardEvent,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { Handle, NodeResizer, Position, type NodeProps, type NodeTypes } from '@xyflow/react'
-import { api } from '../api'
+import { api, compressImage } from '../api'
 import { BoardActions, EditRequest } from './actions'
 import { colorOf, type PSFlowNode } from './mapping'
 import { Markdown } from '../markdown'
@@ -40,6 +50,7 @@ function PhoneEditor(props: {
   setDraft: (value: string) => void
   onCancel: () => void
   onSave: () => void
+  onAttach: () => void
 }) {
   const mountedAt = useRef(performance.now())
   const onBackdrop = () => {
@@ -56,6 +67,9 @@ function PhoneEditor(props: {
           placeholder="markdown — ```mermaid fences render as diagrams"
         />
         <div className="ps-modal-actions">
+          <button onClick={props.onAttach} aria-label="attach an image into this card">
+            📎
+          </button>
           <button onClick={props.onCancel}>取消</button>
           <button className="ps-primary" onClick={props.onSave}>
             儲存
@@ -130,10 +144,12 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
     setEditing(false)
     notifyEditing(false)
     // a card that stays empty after editing is invisible junk (the
-    // create-then-edit flow starts from '') — remove it instead
+    // create-then-edit flow starts from '') — remove it instead. EXCEPT while
+    // an image attach is in flight: the picker blurs the editor, and deleting
+    // the still-empty card here would strand the upload
     const result = save ? draft : (node.text ?? '')
     if ((node.text ?? '') === '' && result.trim() === '') {
-      deleteNode(id)
+      if (!attaching.current) deleteNode(id)
       return
     }
     if (save && draft !== (node.text ?? '')) commitText(id, draft)
@@ -144,6 +160,40 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') finish(true)
   }
   useEditRequest(id, begin)
+  // 📎 in edit mode: upload → append ![](assets/…) to THIS card's text —
+  // the image renders inline with the CEO's notes (annotatable), instead of
+  // becoming a separate card. The system picker blurs the inline editor
+  // (which saves+closes); `attaching` bridges that gap.
+  const attaching = useRef(false)
+  const editingRef = useRef(editing)
+  editingRef.current = editing
+  const imgInput = useRef<HTMLInputElement>(null)
+  const armAttach = () => {
+    attaching.current = true
+    window.setTimeout(() => {
+      attaching.current = false // picker cancelled: no change event ever fires
+    }, 60_000)
+    imgInput.current?.click()
+  }
+  const onAttachPick = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    attaching.current = false
+    if (!file) return
+    const base = draft // text as of the moment the picker was opened
+    try {
+      const blob = await compressImage(file)
+      const name = /\.(jpe?g|png|gif|webp)$/i.test(file.name) ? file.name : `${file.name || 'photo'}.jpg`
+      const { path } = await api.upload(blob, name)
+      const composed = `${base.trimEnd()}\n\n![](${path})\n`.replace(/^\n+/, '')
+      // modal editor stays open across the picker → keep editing the draft;
+      // the inline editor was blur-closed by the picker → commit directly
+      if (editingRef.current) setDraft(composed)
+      else commitText(id, composed)
+    } catch {
+      // local hub; the board error banner covers mutate failures elsewhere
+    }
+  }
   // touch: double-tap = edit. Long-press deliberately does NOT edit — it
   // just selects (toolbar + resize handles appear), matching platform
   // convention that a long-press opens options, not an editor
@@ -183,21 +233,47 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
       >
         <Pin pinned={data.pinned} />
         {editing && !phone ? (
-          <textarea
-            className="ps-editor nodrag nowheel"
-            autoFocus
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onBlur={() => finish(true)}
-            onKeyDown={onKeyDown}
-            placeholder="markdown — ```mermaid fences render as diagrams"
-          />
+          <>
+            <textarea
+              className="ps-editor nodrag nowheel"
+              autoFocus
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onBlur={() => finish(true)}
+              onKeyDown={onKeyDown}
+              placeholder="markdown — ```mermaid fences render as diagrams"
+            />
+            <button
+              className="ps-attach nodrag"
+              // arm BEFORE the textarea blur fires (pointerdown precedes blur)
+              onPointerDown={() => {
+                attaching.current = true
+              }}
+              onClick={armAttach}
+              aria-label="attach an image into this card"
+            >
+              📎
+            </button>
+          </>
         ) : (
           <Markdown text={node.text ?? ''} />
         )}
         {editing && phone && (
-          <PhoneEditor draft={draft} setDraft={setDraft} onCancel={() => finish(false)} onSave={() => finish(true)} />
+          <PhoneEditor
+            draft={draft}
+            setDraft={setDraft}
+            onCancel={() => finish(false)}
+            onSave={() => finish(true)}
+            onAttach={armAttach}
+          />
         )}
+        <input
+          ref={imgInput}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={(event) => void onAttachPick(event)}
+        />
         {/* touch drag shield: iOS claims gestures that start ON TEXT (select
             /scroll arbitration) before the app sees them whole — the shield
             puts inert blank space under the finger instead. Only when
