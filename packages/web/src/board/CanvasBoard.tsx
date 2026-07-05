@@ -26,6 +26,10 @@ interface Props {
   changeSignal: number
 }
 
+// diagnostics channel: the debugtouch harness registers a sink here so deeper
+// layers (the bridge's swallow) can emit lines without coupling to it
+const debugHook = () => (window as { __psDebugLog?: (line: string) => void }).__psDebugLog
+
 export function CanvasBoard(props: Props) {
   return (
     <ReactFlowProvider>
@@ -92,12 +96,20 @@ function BoardInner({ path, changeSignal }: Props) {
       touchWorks = true
     }
     // While we drive d3 with the synthetic stream, Safari's own click-like
-    // synthesis (a lone mousedown with NO mousemoves) must not reach d3 —
-    // it starts a drag that can never move (field: "first press freezes,
-    // works after idling/panning"). stopImmediatePropagation only — NO
-    // preventDefault, or the native click (selection taps) dies with it.
+    // synthesis must not reach d3 — a trusted mouseup mid-gesture makes d3
+    // unbind its window move/up listeners, deafening it to the rest of the
+    // synthetic stream (field: "one step then frozen for 7s of circling";
+    // reproduced: trusted down+up after move 1 → transform frozen at step 1).
+    // MUST live on window: d3-drag binds its gesture listeners on window, and
+    // window is above the board el in capture order — an el-level swallow
+    // fires too late. Registered at bridge init, so it precedes d3's
+    // per-gesture registration and stopImmediatePropagation starves it.
+    // NO preventDefault, or the native click (selection taps) dies with it.
     const swallowRealMouse = (event: MouseEvent) => {
-      if (bridging && event.isTrusted) event.stopImmediatePropagation()
+      if (bridging && event.isTrusted) {
+        event.stopImmediatePropagation()
+        debugHook()?.(`swallow trusted ${event.type} (${Math.round(event.clientX)},${Math.round(event.clientY)})`)
+      }
     }
     const mouse = (type: string, pe: PointerEvent) =>
       new MouseEvent(type, {
@@ -137,18 +149,18 @@ function BoardInner({ path, changeSignal }: Props) {
       window.dispatchEvent(mouse('mouseup', pe))
     }
     window.addEventListener('touchstart', markTouch, { capture: true, passive: true })
-    el.addEventListener('mousedown', swallowRealMouse, { capture: true })
-    el.addEventListener('mousemove', swallowRealMouse, { capture: true })
-    el.addEventListener('mouseup', swallowRealMouse, { capture: true })
+    window.addEventListener('mousedown', swallowRealMouse, { capture: true })
+    window.addEventListener('mousemove', swallowRealMouse, { capture: true })
+    window.addEventListener('mouseup', swallowRealMouse, { capture: true })
     el.addEventListener('pointerdown', onPointerDown, { capture: true })
     window.addEventListener('pointermove', onPointerMove, { capture: true })
     window.addEventListener('pointerup', end, { capture: true })
     window.addEventListener('pointercancel', end, { capture: true })
     return () => {
       window.removeEventListener('touchstart', markTouch, { capture: true })
-      el.removeEventListener('mousedown', swallowRealMouse, { capture: true })
-      el.removeEventListener('mousemove', swallowRealMouse, { capture: true })
-      el.removeEventListener('mouseup', swallowRealMouse, { capture: true })
+      window.removeEventListener('mousedown', swallowRealMouse, { capture: true })
+      window.removeEventListener('mousemove', swallowRealMouse, { capture: true })
+      window.removeEventListener('mouseup', swallowRealMouse, { capture: true })
       el.removeEventListener('pointerdown', onPointerDown, { capture: true })
       window.removeEventListener('pointermove', onPointerMove, { capture: true })
       window.removeEventListener('pointerup', end, { capture: true })
@@ -206,6 +218,7 @@ function BoardInner({ path, changeSignal }: Props) {
       buffer.push(stamped)
       setDebugLines((prev) => [...prev.slice(-11), stamped])
     }
+    ;(window as { __psDebugLog?: (line: string) => void }).__psDebugLog = push
     const label = (t: EventTarget | null) =>
       ((t as HTMLElement)?.className?.toString().split(' ').slice(0, 2).join('.') ?? '?').slice(0, 34)
     const detail = (e: Event) => {
@@ -288,6 +301,7 @@ function BoardInner({ path, changeSignal }: Props) {
     return () => {
       for (const [type, fn] of handlers) el.removeEventListener(type, fn)
       window.clearInterval(flush)
+      delete (window as { __psDebugLog?: (line: string) => void }).__psDebugLog
     }
   }, [debugTouch])
 
