@@ -262,6 +262,10 @@ function BoardInner({ path, changeSignal }: Props) {
           gestureT0 = performance.now()
           gestureEngaged = false
           gestureOnNode = !!(e.target as HTMLElement).closest?.('.react-flow__node')
+          // a press while a node is still .dragging = the PREVIOUS gesture
+          // never closed; it also fools the ENGAGE detector below — flag it
+          const stale = document.querySelector('.react-flow__node.dragging')
+          if (stale) push(`(stale drag at press: ${stale.getAttribute('data-id')?.slice(0, 6) ?? '?'})`)
         }
         if (
           !gestureEngaged &&
@@ -287,6 +291,30 @@ function BoardInner({ path, changeSignal }: Props) {
     // capture AND non-capture end: defaultPrevented is only meaningful after
     // bubble handlers ran, so log at the end of the bubble phase
     for (const [type, fn] of handlers) el.addEventListener(type, fn, { passive: true })
+    // window-level mouse probe: the bridge's synthetic stream and Safari's
+    // trusted synthesis both live on window, ABOVE el — el-level logging
+    // never sees them. Registered before d3's per-gesture listeners, so
+    // d3's stopImmediatePropagation can't hide events from this probe.
+    // dp is sampled a microtask after dispatch: d3's drag handler
+    // preventDefaults mousemoves, so dp=1 ⇒ d3 consumed the event; d3mm=1
+    // ⇒ a mousemove.drag listener is currently parked on window.
+    const d3mm = () => {
+      const on = (window as { __on?: Array<{ type: string; name: string }> }).__on
+      return on?.some((o) => o.type === 'mousemove' && o.name === 'drag') ? 1 : 0
+    }
+    let lastMouseLogged = 0
+    const winMouse = (e: MouseEvent) => {
+      const now = performance.now()
+      if (e.type === 'mousemove' && now - lastMouseLogged < 200) return
+      lastMouseLogged = now
+      const { type: mtype, isTrusted, clientX, clientY } = e
+      queueMicrotask(() => {
+        push(
+          `win:${mtype} t=${isTrusted ? 1 : 0} dp=${e.defaultPrevented ? 1 : 0} d3mm=${d3mm()} (${Math.round(clientX)},${Math.round(clientY)})`,
+        )
+      })
+    }
+    for (const t of ['mousedown', 'mousemove', 'mouseup'] as const) window.addEventListener(t, winMouse, { capture: true })
     const flush = window.setInterval(() => {
       if (buffer.length === 0) return
       const lines = buffer.splice(0, buffer.length)
@@ -300,6 +328,8 @@ function BoardInner({ path, changeSignal }: Props) {
     push(`debug session start ua=${navigator.userAgent.slice(0, 80)}`)
     return () => {
       for (const [type, fn] of handlers) el.removeEventListener(type, fn)
+      for (const t of ['mousedown', 'mousemove', 'mouseup'] as const)
+        window.removeEventListener(t, winMouse, { capture: true })
       window.clearInterval(flush)
       delete (window as { __psDebugLog?: (line: string) => void }).__psDebugLog
     }
