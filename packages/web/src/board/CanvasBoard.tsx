@@ -454,6 +454,9 @@ function BoardInner({ path, changeSignal }: Props) {
   const onConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return
+      // releasing over your own card must not create a self-loop — the
+      // "tiny arrowhead on my own card" bug (drag right/down, let go)
+      if (connection.source === connection.target) return
       mutate([
         {
           kind: 'add_edge',
@@ -465,6 +468,65 @@ function BoardInner({ path, changeSignal }: Props) {
       ])
     },
     [mutate],
+  )
+
+  // drop-anywhere-on-the-card fallback: React Flow only completes a
+  // connection within connectionRadius of a HANDLE POINT (side midpoints),
+  // so "the line touches the target card" did nothing unless it reached the
+  // middle of a side. When the drop misses every handle, hit-test the drop
+  // point against card rects (+tolerance) and wire the edge ourselves,
+  // anchored on the target side that faces the source.
+  const onConnectEnd = useCallback(
+    (
+      event: MouseEvent | TouchEvent,
+      connectionState: {
+        isValid: boolean | null
+        fromNode: FlowNode | null
+        fromHandle: { type: string; id?: string | null } | null
+      },
+    ) => {
+      if (connectionState.isValid) return // a handle caught it — onConnect handled this drop
+      const fromNode = connectionState.fromNode
+      if (!fromNode || connectionState.fromHandle?.type !== 'source') return
+      const { clientX, clientY } =
+        'changedTouches' in event ? event.changedTouches[0] : (event as MouseEvent)
+      const p = screenToFlowPosition({ x: clientX, y: clientY })
+      const TOLERANCE = 24 // finger-friendly: grazing the card edge counts
+      const map = byId()
+      const s = map.get(fromNode.id)
+      if (!s) return
+      let hit: PSFlowNode | undefined
+      for (const n of map.values()) {
+        if (n.id === fromNode.id || n.data.node.type === 'group') continue
+        const a = absolutePosition(n, map)
+        const { width, height } = n.data.node
+        if (
+          p.x >= a.x - TOLERANCE &&
+          p.x <= a.x + width + TOLERANCE &&
+          p.y >= a.y - TOLERANCE &&
+          p.y <= a.y + height + TOLERANCE
+        ) {
+          hit = n
+          break
+        }
+      }
+      if (!hit) return
+      const sa = absolutePosition(s, map)
+      const ha = absolutePosition(hit, map)
+      const dx = ha.x + hit.data.node.width / 2 - (sa.x + s.data.node.width / 2)
+      const dy = ha.y + hit.data.node.height / 2 - (sa.y + s.data.node.height / 2)
+      const toSide = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'left' : 'right') : dy > 0 ? 'top' : 'bottom'
+      mutate([
+        {
+          kind: 'add_edge',
+          from: fromNode.id,
+          to: hit.id,
+          fromSide: connectionState.fromHandle?.id ?? undefined,
+          toSide,
+        },
+      ])
+    },
+    [mutate, screenToFlowPosition],
   )
 
   const onNodesDelete = useCallback(
@@ -618,6 +680,7 @@ function BoardInner({ path, changeSignal }: Props) {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onConnectEnd={onConnectEnd}
             onNodeDragStart={onNodeDragStart}
             onNodeDragStop={onNodeDragStop}
             onNodesDelete={onNodesDelete}
@@ -631,6 +694,9 @@ function BoardInner({ path, changeSignal }: Props) {
             // touch: edges are 1.6px lines — give the finger a fatter target
             defaultEdgeOptions={coarse ? { interactionWidth: 32 } : undefined}
             connectionRadius={44}
+            // no self-loops: also stops the connection preview from snapping
+            // back onto the card the drag started from
+            isValidConnection={(c) => c.source !== c.target}
             // the attribution link hijacks long-presses near the corner on
             // touch; React Flow is credited in the README instead
             proOptions={{ hideAttribution: true }}

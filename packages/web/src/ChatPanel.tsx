@@ -127,7 +127,9 @@ export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
       // iOS delivers the composition-confirming Return AFTER compositionend
       // with isComposing already false — swallow Enters right after it
       if (Date.now() - compositionEndedAt.current < 150) return
-      void send(true)
+      // Enter only records; a handoff is deliberate (the 🤖 button) — CEO
+      // kept triggering agent turns while just taking notes
+      void send(false)
     }
   }
 
@@ -160,7 +162,7 @@ export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
             </div>
           </div>
         ))}
-        {messages.length === 0 && <div className="ps-chat-empty">文字走這裡，空間思考留在板上。Enter 送出＝交棒給 agent。</div>}
+        {messages.length === 0 && <div className="ps-chat-empty">文字走這裡，空間思考留在板上。Enter 只送出；要叫 agent 用「交棒 🤖」。</div>}
         {agentBusy && busySince !== null && (
           <div className="ps-status">
             <span className="ps-chat-busy">🤖 思考中…</span> <Elapsed since={busySince} />
@@ -178,7 +180,7 @@ export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
       <footer className="ps-chat-input">
         <textarea
           value={draft}
-          placeholder="說點什麼…（Enter 送出＋交棒，Shift+Enter 換行）"
+          placeholder="說點什麼…（Enter 送出，Shift+Enter 換行；交棒用 🤖）"
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
           onCompositionEnd={() => {

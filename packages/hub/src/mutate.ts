@@ -94,6 +94,10 @@ export function applyMutations(data: CanvasData, mutations: Mutation[]): MutateO
       case 'add_edge': {
         const from = mustGet(m.from)
         const to = mustGet(m.to)
+        // self-loops render as a stray arrowhead on the card and carry no
+        // meaning for the discussion graph — reject at the hub so every
+        // frontend (web, agents) is covered
+        if (from.id === to.id) throw new Error(`self-edge rejected: ${from.id}`)
         data.edges.push({
           id: genId(),
           fromNode: from.id,
