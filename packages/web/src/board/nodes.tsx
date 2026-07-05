@@ -6,7 +6,7 @@ import { BoardActions, EditRequest } from './actions'
 import { colorOf, type PSFlowNode } from './mapping'
 import { Markdown } from '../markdown'
 import { useLongPress } from './useLongPress'
-import { PHONE_QUERY, useMediaQuery } from '../useMediaQuery'
+import { COARSE_QUERY, PHONE_QUERY, useMediaQuery } from '../useMediaQuery'
 
 /** listen for toolbar-initiated edit requests (touch has no double-click) */
 function useEditRequest(id: string, begin: () => void) {
@@ -110,6 +110,7 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const phone = useMediaQuery(PHONE_QUERY)
+  const coarse = useMediaQuery(COARSE_QUERY)
   const node = data.node
 
   const begin = () => {
@@ -191,6 +192,12 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
         {editing && phone && (
           <PhoneEditor draft={draft} setDraft={setDraft} onCancel={() => finish(false)} onSave={() => finish(true)} />
         )}
+        {/* touch drag shield: iOS claims gestures that start ON TEXT (select
+            /scroll arbitration) before the app sees them whole — the shield
+            puts inert blank space under the finger instead. Only when
+            selected (select-then-drag) and never while editing. Double-tap
+            and long-press still work: their events bubble through it. */}
+        {selected && coarse && !editing && <div className="ps-dragshield" />}
       </div>
     </div>
   )

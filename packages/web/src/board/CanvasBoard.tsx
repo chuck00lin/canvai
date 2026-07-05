@@ -547,6 +547,16 @@ function BoardInner({ path, changeSignal }: Props) {
     [],
   )
 
+  // touch: select-then-drag (CEO decision 2026-07-05). A card must be tapped
+  // (selected) before it will drag — kills accidental drags while panning,
+  // and pairs with the drag shield (nodes.tsx) that puts blank space under
+  // the finger where iOS would otherwise claim text gestures. Mouse keeps
+  // direct drag.
+  const renderNodes = useMemo(
+    () => (coarse ? nodes.map((n) => ({ ...n, draggable: !!n.selected })) : nodes),
+    [coarse, nodes],
+  )
+
   // connect mode (touch): 連線 on the toolbar, then tap the target node.
   // Otherwise: force-select on click — some iOS tap sequences (e.g. first
   // tap after the keyboard dismisses) deliver the click without React Flow
@@ -611,7 +621,7 @@ function BoardInner({ path, changeSignal }: Props) {
       <BoardActions.Provider value={actions}>
         <EditRequest.Provider value={editReq}>
           <ReactFlow
-            nodes={nodes}
+            nodes={renderNodes}
             edges={edges}
             nodeTypes={nodeTypes}
             onNodesChange={onNodesChange}

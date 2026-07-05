@@ -873,6 +873,19 @@ body {
   touch-action: none;
 }
 
+/* touch drag shield (selected cards, coarse pointer): a transparent layer
+   over the card content so the finger lands on inert blank space instead of
+   text — iOS claims gestures that start on text (selection arbitration) and
+   the drag engine only gets scraps. Sits above content, below the resize
+   controls (they live outside .ps-card). */
+.ps-dragshield {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* iOS treats overflow:hidden boxes (.ps-md) as SCROLL CONTAINERS: touch-action
    resolution stops there and never consults the node's touch-action:none, so
    drags starting on card CONTENT get eaten as scroll attempts. Field
