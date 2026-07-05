@@ -8,6 +8,12 @@ import { Markdown } from '../markdown'
 import { useLongPress } from './useLongPress'
 import { COARSE_QUERY, PHONE_QUERY, useMediaQuery } from '../useMediaQuery'
 
+// ?noshield: on-device A/B for the center-dead-zone mechanism. The shield
+// made the symptom disappear; disabling it (with &debugtouch recording)
+// is the controlled experiment that proves/refutes "iOS claims gestures
+// that start on text" as the actual trigger.
+const NO_SHIELD = new URLSearchParams(window.location.search).has('noshield')
+
 /** listen for toolbar-initiated edit requests (touch has no double-click) */
 function useEditRequest(id: string, begin: () => void) {
   const editReq = useContext(EditRequest)
@@ -197,7 +203,7 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
             puts inert blank space under the finger instead. Only when
             selected (select-then-drag) and never while editing. Double-tap
             and long-press still work: their events bubble through it. */}
-        {selected && coarse && !editing && <div className="ps-dragshield" />}
+        {selected && coarse && !editing && !NO_SHIELD && <div className="ps-dragshield" />}
       </div>
     </div>
   )
