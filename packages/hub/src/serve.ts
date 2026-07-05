@@ -81,6 +81,10 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
   )
 
   const snapshots = new Map<string, CanvasData>()
+  // bare 交棒 presses fall back to the last human chat line as the note —
+  // remember which line was already delivered so pressing the button again
+  // doesn't re-send stale text as if it were a fresh instruction
+  let lastHandoffNoteId: string | null = null
   const selfWrites = new Map<string, number>()
   const markSelfWrite = (board: string) => selfWrites.set(board, Date.now())
   const wasSelfWrite = (board: string) => Date.now() - (selfWrites.get(board) ?? 0) <= SELF_WRITE_WINDOW_MS
@@ -298,7 +302,11 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
       let note = body.note
       if (!note) {
         const { messages } = await readChatSince(root)
-        note = messages.filter((m) => m.from === 'human').at(-1)?.text
+        const last = messages.filter((m) => m.from === 'human').at(-1)
+        if (last && last.id !== lastHandoffNoteId) {
+          note = last.text
+          lastHandoffNoteId = last.id
+        }
       }
       broadcast({ type: 'handoff_requested', note: note ?? null })
       if ((options.handoffMode ?? 'spawn') === 'signal') {
