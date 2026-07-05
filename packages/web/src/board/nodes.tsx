@@ -173,7 +173,7 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
       />
       <Sides />
       <div
-        className={`ps-card ps-text${selected ? ' is-selected' : ''}`}
+        className={`ps-card ps-text${selected ? ' is-selected' : ''}${node.discuss === false ? ' is-muted' : ''}`}
         style={tintStyle(node.color)}
         onDoubleClick={(event) => {
           event.stopPropagation()

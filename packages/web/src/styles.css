@@ -873,6 +873,14 @@ body {
   touch-action: none;
 }
 
+/* discuss opt-out: the card has left the agent discussion but stays on the
+   board — dimmed for humans, marked ⏸ in the agent projection. Never hidden:
+   hiding reads as deletion on the agent side. */
+.ps-card.is-muted {
+  opacity: 0.45;
+  filter: saturate(0.4);
+}
+
 /* touch drag shield (selected cards, coarse pointer): a transparent layer
    over the card content so the finger lands on inert blank space instead of
    text — iOS claims gestures that start on text (selection arbitration) and

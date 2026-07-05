@@ -698,6 +698,14 @@ function BoardInner({ path, changeSignal }: Props) {
               <button onClick={() => setColorMode(true)} aria-label="card color">
                 🎨
               </button>
+              <button
+                onClick={() =>
+                  mutate([{ kind: 'set_discuss', id: selNode.id, discuss: selNode.data.node.discuss === false }])
+                }
+                aria-label="toggle discuss participation"
+              >
+                {selNode.data.node.discuss === false ? '⏸ 加回討論' : '⏸ 退出討論'}
+              </button>
               <button onClick={() => setConnectFrom(selNode.id)}>🔗 連線</button>
               <button
                 className="ps-toolbar-danger"

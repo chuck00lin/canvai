@@ -29,6 +29,10 @@ export interface CanvasNode {
   label?: string
   background?: string
   backgroundStyle?: string
+  /** pairsketch extension: absent/true = card participates in the agent
+   *  discussion; false = opted out (still on the board — never hidden,
+   *  hiding reads as deletion on the agent side) */
+  discuss?: boolean
   [key: string]: unknown
 }
 

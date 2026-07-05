@@ -26,6 +26,11 @@ export function structuralProjection(data: CanvasData, boardName = 'canvas'): Pr
   const lines: string[] = []
   lines.push(`board: ${boardName} — ${cards.length} nodes, ${groups.length} groups, ${es.length} edges`)
   lines.push('(ids in [brackets] are unique prefixes; use them directly in apply_ops)')
+  if (ns.some((n) => n.discuss === false)) {
+    lines.push(
+      '(⏸ marks cards opted OUT of the discussion — they still exist on the board, NOT deleted; read for context, do not act on or comment about them)',
+    )
+  }
 
   if (groups.length > 0) {
     lines.push('', 'groups:')
@@ -40,7 +45,8 @@ export function structuralProjection(data: CanvasData, boardName = 'canvas'): Pr
     for (const n of cards) {
       const home = smallestContainingGroup(n, groups)
       const where = home ? ` (in ${a(home.id)})` : ''
-      lines.push(`[${a(n.id)}] ${n.type}${where}: ${describe(n)}`)
+      const off = n.discuss === false ? ' ⏸' : ''
+      lines.push(`[${a(n.id)}] ${n.type}${off}${where}: ${describe(n)}`)
     }
   }
 

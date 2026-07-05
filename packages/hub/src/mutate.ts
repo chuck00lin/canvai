@@ -12,6 +12,7 @@ export type Mutation =
   | { kind: 'set_text'; id: string; text: string }
   | { kind: 'set_color'; id: string; color?: string }
   | { kind: 'set_label'; id: string; label: string }
+  | { kind: 'set_discuss'; id: string; discuss: boolean }
   | { kind: 'add_text_node'; x: number; y: number; text?: string; width?: number; height?: number }
   | { kind: 'add_edge'; from: string; to: string; fromSide?: Side; toSide?: Side; label?: string }
   | { kind: 'delete_node'; id: string }
@@ -65,6 +66,14 @@ export function applyMutations(data: CanvasData, mutations: Mutation[]): MutateO
       case 'set_label': {
         mustGet(m.id).label = m.label
         summary.push(`label ${m.id}`)
+        break
+      }
+      case 'set_discuss': {
+        const node = mustGet(m.id)
+        // default is ON — store the field only for opt-outs so boards stay clean
+        if (m.discuss) delete node.discuss
+        else node.discuss = false
+        summary.push(`discuss ${node.id} ${m.discuss ? 'on' : 'off'}`)
         break
       }
       case 'add_text_node': {

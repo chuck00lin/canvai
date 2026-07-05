@@ -16,6 +16,8 @@ export interface CanvasNode {
   file?: string
   url?: string
   label?: string
+  /** absent/true = participates in the agent discussion; false = opted out */
+  discuss?: boolean
   [key: string]: unknown
 }
 
@@ -48,6 +50,7 @@ export type Mutation =
   | { kind: 'set_text'; id: string; text: string }
   | { kind: 'set_color'; id: string; color?: string }
   | { kind: 'set_label'; id: string; label: string }
+  | { kind: 'set_discuss'; id: string; discuss: boolean }
   | { kind: 'add_text_node'; x: number; y: number; text?: string; width?: number; height?: number }
   | { kind: 'add_edge'; from: string; to: string; fromSide?: string; toSide?: string; label?: string }
   | { kind: 'delete_node'; id: string }
