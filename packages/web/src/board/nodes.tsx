@@ -432,35 +432,17 @@ function GroupNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   )
 }
 
-// memo comparator: EVERY board_changed rebuilds all node data objects
-// (toFlow), so the default shallow compare sees a fresh `data` reference on
-// every card and re-renders (and re-parses markdown / re-decodes images) for
-// ALL cards on ANY change — the "gets laggy as the board grows" report.
-// Compare the meaningful fields by value instead of by object identity, so an
-// unrelated edit re-renders only the card it touched. Position is applied by
-// React Flow's wrapper (transform on the parent), not inside these bodies, so
-// x/y are deliberately excluded.
-function samePSNode(a: NodeProps<PSFlowNode>, b: NodeProps<PSFlowNode>): boolean {
-  if (a.selected !== b.selected || a.dragging !== b.dragging) return false
-  if (a.data.pinned !== b.data.pinned) return false
-  const x = a.data.node
-  const y = b.data.node
-  return (
-    x === y ||
-    (x.text === y.text &&
-      x.file === y.file &&
-      x.url === y.url &&
-      x.label === y.label &&
-      x.color === y.color &&
-      x.discuss === y.discuss &&
-      x.width === y.width &&
-      x.height === y.height)
-  )
-}
-
+// memo: default shallow compare. A value-comparator (samePSNode) that skipped
+// re-renders on unrelated board changes was REVERTED 2026-07-06: on iPad/iPhone
+// Safari it unmasked a compositing bug — after heavy interaction + a pan, cards
+// stayed in the DOM (node count held at 18 in a device capture) but Safari
+// stopped PAINTING them, because without the incidental re-renders nothing
+// re-dirtied the memory-evicted GPU tiles. Restoring the re-renders is the
+// known-good behavior. The board-growth perf win needs a paint-safe redo
+// (repaint nudge on move-end), verified on-device — see DevLog 2026-07-06.
 export const nodeTypes: NodeTypes = {
-  text: memo(TextNode, samePSNode),
-  file: memo(FileNode, samePSNode),
-  link: memo(LinkNode, samePSNode),
-  group: memo(GroupNode, samePSNode),
+  text: memo(TextNode),
+  file: memo(FileNode),
+  link: memo(LinkNode),
+  group: memo(GroupNode),
 }
