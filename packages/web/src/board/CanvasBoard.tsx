@@ -652,21 +652,6 @@ function BoardInner({ path, changeSignal }: Props) {
     [setNodes],
   )
 
-  // paint-safe pairing for the node memo comparator (nodes.tsx): skipping
-  // re-renders removed the incidental repaints that kept iOS Safari's
-  // memory-evicted card layers painted, so a pan left untouched cards blank
-  // (2026-07-06 device capture: node count held at 18, cards just unpainted).
-  // Force one recomposite of the whole canvas subtree when a pan/zoom ends —
-  // an imperceptible opacity nudge, once per gesture, coarse pointers only.
-  const forceRepaint = useCallback(() => {
-    const el = boardRef.current
-    if (!el) return
-    el.style.opacity = '0.999'
-    window.requestAnimationFrame(() => {
-      if (boardRef.current) boardRef.current.style.opacity = ''
-    })
-  }, [])
-
   const selNode =
     selection.nodes.length === 1 && selection.edges.length === 0
       ? nodes.find((n) => n.id === selection.nodes[0])
@@ -717,7 +702,6 @@ function BoardInner({ path, changeSignal }: Props) {
             onEdgesDelete={onEdgesDelete}
             onEdgeDoubleClick={onEdgeDoubleClick}
             onSelectionChange={onSelectionChange}
-            onMoveEnd={coarse ? forceRepaint : undefined}
             onNodeClick={onNodeClick}
             // touch: no keyboard delete — the toolbar 🗑 (with confirm) is
             // the delete path; a lingering selection + Backspace was a trap

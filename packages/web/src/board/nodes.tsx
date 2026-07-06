@@ -432,40 +432,17 @@ function GroupNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   )
 }
 
-// memo comparator: EVERY board_changed rebuilds all node data objects
-// (toFlow), so the default shallow compare sees a fresh `data` reference on
-// every card and re-renders (re-parses markdown / re-decodes images) for ALL
-// cards on ANY change — the "gets laggy as the board grows" report. Compare
-// the meaningful fields by value so an unrelated edit re-renders only the card
-// it touched. x/y excluded: position is applied by React Flow's wrapper.
-//
-// PAIRED WITH a move-end repaint nudge in CanvasBoard: skipping these
-// re-renders removed the incidental repaints that were re-dirtying iOS
-// Safari's memory-evicted card layers, so a pan left untouched cards blank
-// (2026-07-06 device capture: node count held, cards just unpainted). The
-// nudge forces the recomposite explicitly, once per pan — so the perf win
-// and correctness both hold instead of riding on a side effect.
-function samePSNode(a: NodeProps<PSFlowNode>, b: NodeProps<PSFlowNode>): boolean {
-  if (a.selected !== b.selected || a.dragging !== b.dragging) return false
-  if (a.data.pinned !== b.data.pinned) return false
-  const x = a.data.node
-  const y = b.data.node
-  return (
-    x === y ||
-    (x.text === y.text &&
-      x.file === y.file &&
-      x.url === y.url &&
-      x.label === y.label &&
-      x.color === y.color &&
-      x.discuss === y.discuss &&
-      x.width === y.width &&
-      x.height === y.height)
-  )
-}
-
+// memo: default shallow compare. A value-comparator (samePSNode) that skipped
+// re-renders on unrelated board changes was REVERTED 2026-07-06: on iPad/iPhone
+// Safari it unmasked a compositing bug — after heavy interaction + a pan, cards
+// stayed in the DOM (node count held at 18 in a device capture) but Safari
+// stopped PAINTING them, because without the incidental re-renders nothing
+// re-dirtied the memory-evicted GPU tiles. Restoring the re-renders is the
+// known-good behavior. The board-growth perf win needs a paint-safe redo
+// (repaint nudge on move-end), verified on-device — see DevLog 2026-07-06.
 export const nodeTypes: NodeTypes = {
-  text: memo(TextNode, samePSNode),
-  file: memo(FileNode, samePSNode),
-  link: memo(LinkNode, samePSNode),
-  group: memo(GroupNode, samePSNode),
+  text: memo(TextNode),
+  file: memo(FileNode),
+  link: memo(LinkNode),
+  group: memo(GroupNode),
 }
