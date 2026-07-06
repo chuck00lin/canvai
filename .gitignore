@@ -17,12 +17,17 @@ Thumbs.db
 *.log
 
 # safety net: internal material never ships.
-# The real internal folder lives OUTSIDE this repo (../canvas-hub-internal/),
-# but these patterns catch anything dropped here by habit.
+# The real data/boards live OUTSIDE this repo (../pairsketch-internal/), and
+# the hub runs with --root pointing there. These patterns catch anything
+# dropped here by habit.
 internal/
 notes/
 scratch/
 *.internal.*
+
+# private user data — boards and uploaded images live in ../pairsketch-internal/
+discuss/
+assets/
 
 # pairsketch hub local state
 .pairsketch/
