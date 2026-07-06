@@ -218,6 +218,20 @@ function BoardInner({ path, changeSignal }: Props) {
       setDebugLines((prev) => [...prev.slice(-11), stamped])
     }
     ;(window as { __psDebugLog?: (line: string) => void }).__psDebugLog = push
+    // node-count watchdog: field report "resize a card → all others vanish"
+    // reproduces on no emulator, so log the live count so a device capture
+    // shows the exact frame cards leave the DOM and how many remain.
+    let lastCount = -1
+    let rafId = 0
+    const watchCount = () => {
+      const n = document.querySelectorAll('.react-flow__node').length
+      if (n !== lastCount) {
+        if (lastCount !== -1) push(`⚠ nodes ${lastCount} → ${n}`)
+        lastCount = n
+      }
+      rafId = window.requestAnimationFrame(watchCount)
+    }
+    rafId = window.requestAnimationFrame(watchCount)
     const label = (t: EventTarget | null) =>
       ((t as HTMLElement)?.className?.toString().split(' ').slice(0, 2).join('.') ?? '?').slice(0, 34)
     const detail = (e: Event) => {
@@ -329,6 +343,7 @@ function BoardInner({ path, changeSignal }: Props) {
       for (const [type, fn] of handlers) el.removeEventListener(type, fn)
       for (const t of ['mousedown', 'mousemove', 'mouseup'] as const)
         window.removeEventListener(t, winMouse, { capture: true })
+      window.cancelAnimationFrame(rafId)
       window.clearInterval(flush)
       delete (window as { __psDebugLog?: (line: string) => void }).__psDebugLog
     }
