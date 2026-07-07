@@ -2,23 +2,24 @@
 
 **Your AI canvas partner — a discussion tool for visual thinkers, on every project.**
 
-Terminals are a narrow pipe for visual thinkers, and today it is the only pipe we share with our agents. canvai gives you and an AI partner one shared, infinite canvas: drop ideas as cards, connect them, sketch the shape of a problem — and the agent reads the whole board, replies in place, and reshapes it with you. Like Miro or FigJam, except the participants include AI agents. Humans drag cards in a browser (or in Obsidian); agents read and edit the same boards through MCP. Boards are plain [JSON Canvas](https://jsoncanvas.org) files in your repo, versioned by git — your thinking stays yours.
+Terminals are a narrow pipe for visual thinkers, and today it is the only pipe we share with our agents. canvai gives you and an AI partner one shared, infinite canvas: drop ideas as cards, connect them, sketch the shape of a problem — and the agent reads the whole board, replies in place, and reshapes it with you. Like Miro or FigJam, except the participants include AI agents.
+
+**Drop it into any repo, point [Claude Code](https://claude.com/claude-code) (or any MCP client) at it, and discuss in the browser instead of the terminal.** No design tool, no account, no Obsidian required — boards are plain [JSON Canvas](https://jsoncanvas.org) files in your repo, versioned by git. Your thinking stays yours.
 
 ![canvai — a decision worked through with an AI partner](docs/images/canvai-example-decision.png)
 
-> **Status: Phase 0 + Phase 1 core shipped, protocol still soft.** The MCP hub, the canvas library, and a live web client (watcher + WebSocket + React Flow) work today — see Quickstart. We are collecting real-world use cases before freezing the protocol. **If you have ever wished you could discuss architecture with an agent on a whiteboard instead of a terminal, [tell us about it](.github/ISSUE_TEMPLATE/use-case.yml)** — early requirements shape this project the most.
+> **What works today:** add canvai to any repo, open the board in your browser, and Claude Code edits it live while you drag cards back at it — the whole human↔agent loop runs now (MCP hub + canvas library + React Flow web client, watcher → WebSocket). The board *protocol* is still soft: we're collecting real-world use cases before freezing it. **Wished you could discuss architecture with an agent on a whiteboard instead of a terminal? [Tell us about it](.github/ISSUE_TEMPLATE/use-case.yml)** — early use cases shape this project the most.
 
-## Quickstart (Phase 0: agent + Obsidian, no frontend)
+## Quickstart — canvai + Claude Code, in any repo
 
-Requires Node ≥ 23.6 (runs TypeScript natively; no build step).
+Requires Node ≥ 23.6 (runs TypeScript natively; no build step for the hub).
 
 ```bash
-git clone <repo-url> && cd canvai
-npm install
-npm test   # 29 tests: round-trip fidelity, semantic ops, ELK layout, full MCP loop
+git clone git@github.com:chuck00lin/canvai.git
+cd canvai && npm install && npm run web:build   # web:build once, for the browser client
 ```
 
-Hook the hub into **any** repo — add to that repo's `.mcp.json` (Claude Code) or your MCP client's config:
+**1 · Point Claude Code at the repo you want to think about.** Add canvai to that repo's `.mcp.json` (works with any MCP client):
 
 ```json
 {
@@ -31,20 +32,20 @@ Hook the hub into **any** repo — add to that repo's `.mcp.json` (Claude Code) 
 }
 ```
 
-Open the repo folder as (or inside) an Obsidian vault, then ask your agent something like:
+**2 · Open the canvas.** From that same repo:
+
+```bash
+node /path/to/canvai/packages/hub/src/cli.ts serve --root .
+# → http://127.0.0.1:5199
+```
+
+**3 · Think together.** Ask Claude Code something like:
 
 > create a board `discuss/architecture.canvas`, set it active, and sketch our module structure on it
 
-Cards appear in Obsidian as the agent works; drag them around, and the agent picks your arrangement up on its next read. This very repo dogfoods the loop: [`discuss/roadmap.canvas`](discuss/roadmap.canvas) was drawn by the hub itself.
+Cards appear in the browser as the agent works. Drag one and it is **pinned**: `auto_layout` flows around it, and the agent picks your arrangement up on its next read (`events_since`). Double-click a card to edit markdown (``` ```mermaid ``` fences render as diagrams), draw edges from the side handles, and tick a board **active** in the sidebar to point the agent at it. The MCP process and the serve process coordinate purely through files — run either one alone, or both. This very repo dogfoods the loop: [`examples/decision.canvas`](examples/decision.canvas) is a board worked through with an agent.
 
-### The live loop (Phase 1): browser instead of / next to Obsidian
-
-```bash
-npm run web:build            # once, builds the React Flow client
-npm run serve                # http://127.0.0.1:5199 — or: node .../packages/hub/src/cli.ts serve --root <your repo>
-```
-
-Open the URL next to your agent session. Agent edits appear in the browser as they happen (file watcher → WebSocket). Drag a card and it is **pinned**: `auto_layout` flows around it, and the agent sees your move in `events_since`. Double-click cards to edit markdown (``` ```mermaid ``` fences render as diagrams), draw edges from the side handles, tick a board **active** in the sidebar to point every agent at it. The MCP process and the serve process coordinate purely through files — run either one alone, or both.
+**Obsidian is optional.** The web client is the whole UI — nothing else to install. But because boards are just [JSON Canvas](https://jsoncanvas.org) files, if you already use [Obsidian](https://obsidian.md) you can open the repo as a vault and they render (and edit) natively. canvai reads and writes that format; it credits it, it doesn't depend on it.
 
 **Remote / same-VPN access.** The hub binds `127.0.0.1` by default. To open a board from another machine on your VPN or LAN:
 

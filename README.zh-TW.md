@@ -6,7 +6,7 @@ Terminal 對視覺化思考者是一條太窄的管道。canvai 讓你和一個 
 
 ![canvai — 跟 AI 夥伴一起想清楚一個決策](docs/images/canvai-example-decision.png)
 
-> **目前狀態：Phase 0＋Phase 1 核心已出貨，協定仍在收斂。** MCP hub、canvas 函式庫、以及即時 web client（watcher＋WebSocket＋React Flow）今天就能用——見英文版 README 的 Quickstart。我們正在收集真實使用情境來定協定。**如果你曾希望能跟 agent 在白板上而不是 terminal 裡討論架構，[告訴我們你的情境](.github/ISSUE_TEMPLATE/use-case.yml)**——早期的需求對這個專案影響最大。
+> **現在就能用:** 把 canvai 接到任何 repo,在瀏覽器打開板,Claude Code 就能即時在上面編輯、你同時拖卡片回應它——整個人↔agent 閉環現在就跑得起來(MCP hub＋canvas 函式庫＋React Flow web client,watcher→WebSocket)。**不需要 Obsidian、不需要帳號、不需要設計工具。** 板的*協定*仍在收斂,我們正收集真實情境再凍結它。安裝步驟見英文版 [README](README.md) 的 Quickstart。**曾希望能跟 agent 在白板上而不是 terminal 討論架構?[告訴我們你的情境](.github/ISSUE_TEMPLATE/use-case.yml)**——早期需求最能形塑這專案。
 
 ## 核心想法
 
