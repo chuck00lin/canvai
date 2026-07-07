@@ -15,13 +15,13 @@ Terminal 對視覺化思考者是一條太窄的管道。canvai 讓你和一個 
 - **人類意圖優先**：被人拖過的節點會 pin 住，auto-layout 繞開它。
 - **Mermaid 是 I/O 語言，不是儲存格式**：agent 可以輸出 mermaid，由 hub 爆開成 canvas 節點；密集結構圖（sequence、state）以 fenced block 形式在卡片內原地渲染。
 
-## 架構與路線
+## 架構與展望
 
 架構圖與完整決策理由（含「為什麼不做 mermaid 互動引擎」「為什麼 Obsidian 只當 client 不當 server」的論證）請見英文版 [README](README.md) 與[設計文件](docs/design.md)。
 
-- **Phase 0** ✅：零前端——MCP＋`.canvas`＋Obsidian 當 viewer，驗證「在板上討論」勝過 terminal，並實測 token 成本。
-- **Phase 1** ✅ 核心已出貨：serve 模式（watcher＋WebSocket＋REST）＋React Flow web 端＋active board 閉環＋拖拉即 pin＋events_since。
-- **Phase 2**：Yjs 即時協作、presence（人類＋agent 游標）、mermaid 匯入爆開、`@agent` pin 提問協定。
+**現在就能用**：完整閉環——把 canvai 接到任何 repo，Claude Code 就在瀏覽器的板上畫、你同時拖卡片回應它（MCP hub＋canvas 函式庫＋輕量本地 server＋React Flow 編輯器＋active board 閉環＋拖拉即 pin＋events_since）。
+
+**接下來**：**即時協作**——Yjs CRDT 讓人與 agent 同時編輯、presence（游標）、mermaid 匯入爆開、`@agent` pin 提問協定、多板 portal。板的*協定*在真實情境收斂前保持彈性。
 
 ## 參與
 

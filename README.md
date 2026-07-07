@@ -109,18 +109,18 @@ Every layer can fail independently: kill the server and humans still open boards
 
 | Tool | Purpose | Cost profile | Status |
 |---|---|---|---|
-| `list_boards` / `get_active_board` / `set_active_board` / `create_board` | discover boards; share one focus between human and agent | O(boards) | ✅ Phase 0 |
-| `read_board(mode)` | `structure` (default, coordinate-free) · `full` | structure ≈ ⅓ of full | ✅ Phase 0 |
-| `apply_ops([...])` | atomic batch of semantic edits: add / update / delete / connect / group / relative move, with `$ref` chaining | O(change) | ✅ Phase 0 |
-| `auto_layout` | ELK layered pass; pinned (human-arranged) nodes stay put, groups move as blocks | O(1) call | ✅ Phase 0 |
-| `events_since(cursor)` | what humans did since last sync: web edits, Obsidian edits, other agents | O(diff) | ✅ Phase 1 |
-| `insert_mermaid(text)` | Mermaid → parse → ELK layout → canvas nodes | structure price, positions free | Phase 2 |
+| `list_boards` / `get_active_board` / `set_active_board` / `create_board` | discover boards; share one focus between human and agent | O(boards) | ✅ |
+| `read_board(mode)` | `structure` (default, coordinate-free) · `full` | structure ≈ ⅓ of full | ✅ |
+| `apply_ops([...])` | atomic batch of semantic edits: add / update / delete / connect / group / relative move, with `$ref` chaining | O(change) | ✅ |
+| `auto_layout` | ELK layered pass; pinned (human-arranged) nodes stay put, groups move as blocks | O(1) call | ✅ |
+| `events_since(cursor)` | what humans did since last sync: web edits, Obsidian edits, other agents | O(diff) | ✅ |
+| `insert_mermaid(text)` | Mermaid → parse → ELK layout → canvas nodes | structure price, positions free | planned |
 
-## Roadmap
+## What's next
 
-- **Phase 0 — zero frontend.** ✅ shipped. MCP server + `.canvas` files + Obsidian as the viewer. Validates that discussing *on a board* beats discussing in a terminal, and measures real token costs. Turn-based collaboration.
-- **Phase 1 — own client.** ✅ core shipped. The thin local server (watcher + WebSocket + atomic writes that preserve unknown fields) and a React Flow editor with the active-board loop. Agent edits appear live in the browser; human drags pin nodes and surface in `events_since`.
-- **Phase 2 — real-time.** CRDT document layer (Yjs), presence (human and agent cursors), Mermaid import-explode, the `@agent` pin protocol, multi-board portals.
+Here today: the full loop — add canvai to any repo and Claude Code sketches on a board in your browser while you drag cards back at it (MCP hub, canvas library, a thin local server with atomic writes that preserve unknown fields, a React Flow editor with the active-board loop, human drags that pin nodes and surface in `events_since`).
+
+Next: **real-time** — a CRDT document layer (Yjs) for simultaneous human + agent editing, presence (cursors), Mermaid import-explode, an `@agent` pin protocol, and multi-board portals. The board *protocol* stays soft until real use cases settle it.
 
 **Non-goals:** an interactive Mermaid engine (the language has no position vocabulary — see the [design doc](docs/design.md#decision-2) for why every attempt converges back to a canvas); a cloud service (local-first, your repo is the backend); real-time CRDT before turn-based collaboration proves itself.
 
