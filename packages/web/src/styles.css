@@ -63,6 +63,75 @@ body {
 .ps-brand {
   padding: 16px 16px 12px;
   border-bottom: 1px solid var(--hair);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* settings gear + popover (top bar on phone, brand header on desktop) */
+.ps-settings {
+  position: relative;
+  flex: none;
+}
+
+.ps-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+.ps-settings-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 61;
+  min-width: 200px;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--hair);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14);
+}
+
+.ps-settings-title {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.ps-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.ps-settings-row select {
+  font: inherit;
+  padding: 4px 6px;
+  border: 1px solid var(--hair);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+/* desktop gear (the phone one is styled inside the mobile media query) */
+.ps-brand .ps-iconbtn {
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  font-size: 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.ps-brand .ps-iconbtn:hover {
+  background: #eef0f2;
+  color: var(--ink);
 }
 
 .ps-logo {

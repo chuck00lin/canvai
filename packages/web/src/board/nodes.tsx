@@ -17,6 +17,7 @@ import { colorOf, type PSFlowNode } from './mapping'
 import { Markdown } from '../markdown'
 import { useLongPress } from './useLongPress'
 import { COARSE_QUERY, PHONE_QUERY, useMediaQuery } from '../useMediaQuery'
+import { useT } from '../i18n'
 
 // ?noshield: on-device A/B for the center-dead-zone mechanism. The shield
 // made the symptom disappear; disabling it (with &debugtouch recording)
@@ -52,6 +53,7 @@ function PhoneEditor(props: {
   onSave: () => void
   onAttach: () => void
 }) {
+  const t = useT()
   const mountedAt = useRef(performance.now())
   const onBackdrop = () => {
     if (performance.now() - mountedAt.current < 600) return
@@ -64,15 +66,15 @@ function PhoneEditor(props: {
           autoFocus
           value={props.draft}
           onChange={(event) => props.setDraft(event.target.value)}
-          placeholder="markdown — ```mermaid fences render as diagrams"
+          placeholder={t('editor.placeholder')}
         />
         <div className="ps-modal-actions">
           <button onClick={props.onAttach} aria-label="attach an image into this card">
             📎
           </button>
-          <button onClick={props.onCancel}>取消</button>
+          <button onClick={props.onCancel}>{t('editor.cancel')}</button>
           <button className="ps-primary" onClick={props.onSave}>
-            儲存
+            {t('editor.save')}
           </button>
         </div>
       </div>
@@ -127,6 +129,7 @@ function tintStyle(color?: string): CSSProperties | undefined {
 
 function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   const { commitText, commitGeometry, notifyEditing, deleteNode } = useContext(BoardActions)
+  const t = useT()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const phone = useMediaQuery(PHONE_QUERY)
@@ -241,7 +244,7 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
               onChange={(event) => setDraft(event.target.value)}
               onBlur={() => finish(true)}
               onKeyDown={onKeyDown}
-              placeholder="markdown — ```mermaid fences render as diagrams"
+              placeholder={t('editor.placeholder')}
             />
             <button
               className="ps-attach nodrag"

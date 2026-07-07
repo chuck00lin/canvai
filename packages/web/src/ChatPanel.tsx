@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { api, type ChatMessage } from './api'
 import { Markdown } from './markdown'
+import { useT } from './i18n'
 
 interface Props {
   /** bumped by App when the hub broadcasts chat_changed */
@@ -37,6 +38,7 @@ function Elapsed({ since }: { since: number }) {
  * signal doesn't arrive, say so instead of leaving a dead spinner.
  */
 export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
+  const t = useT()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -45,7 +47,7 @@ export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
   // iOS IME: the Return that CONFIRMS a composition arrives AFTER
   // compositionend with isComposing=false — the standard guard misses it
   const compositionEndedAt = useRef(0)
-  // set when 交棒 is sent; cleared when the busy signal (or a reply) arrives
+  // set when a turn is handed to the agent; cleared when the busy signal (or a reply) arrives
   const [handoffSentAt, setHandoffSentAt] = useState<number | null>(null)
   const [busySince, setBusySince] = useState<number | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -139,11 +141,11 @@ export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
     <aside className={`ps-chat${open ? ' is-open' : ''}`}>
       <header className="ps-chat-head">
         <span>
-          <i className={`ps-live${wsUp ? ' is-up' : ''}`} title={wsUp ? 'connected' : 'reconnecting…'} />
-          chat
+          <i className={`ps-live${wsUp ? ' is-up' : ''}`} title={wsUp ? t('live.connected') : t('live.reconnecting')} />
+          {t('chat.title')}
         </span>
         <span className="ps-chat-head-right">
-          {!wsUp && <span className="ps-chat-reconnect">reconnecting…</span>}
+          {!wsUp && <span className="ps-chat-reconnect">{t('live.reconnecting')}</span>}
           {onClose && (
             <button className="ps-chat-close" onClick={onClose} aria-label="close chat">
               ✕
@@ -162,24 +164,19 @@ export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
             </div>
           </div>
         ))}
-        {messages.length === 0 && (
-          <div className="ps-chat-empty">
-            Words go here; spatial thinking stays on the board. <b>Send</b> and the agent reads the whole board and
-            replies — or <b>Note</b> to jot something without a reply.
-          </div>
-        )}
+        {messages.length === 0 && <div className="ps-chat-empty">{t('chat.empty')}</div>}
         {agentBusy && busySince !== null && (
           <div className="ps-status">
-            <span className="ps-chat-busy">🤖 thinking…</span> <Elapsed since={busySince} />
-            <span className="ps-status-hint">(a work turn can take a few minutes; the reply appears here)</span>
+            <span className="ps-chat-busy">🤖 {t('chat.thinking')}</span> <Elapsed since={busySince} />
+            <span className="ps-status-hint">{t('chat.busyHint')}</span>
           </div>
         )}
         {!agentBusy && handoffSentAt !== null && !ackOverdue && (
-          <div className="ps-status">⏳ sent — waiting for the agent…</div>
+          <div className="ps-status">⏳ {t('chat.waiting')}</div>
         )}
         {!agentBusy && ackOverdue && (
           <div className="ps-status ps-status-warn">
-            ⚠ the agent hasn’t picked this up yet ({wsUp ? 'it may be busy with another turn; your message is queued' : 'connection dropped — it will resend when reconnected'})
+            ⚠ {wsUp ? t('chat.overdue.busy') : t('chat.overdue.offline')}
           </div>
         )}
       </div>
@@ -187,7 +184,7 @@ export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
       <footer className="ps-chat-input">
         <textarea
           value={draft}
-          placeholder="Message the agent…   ⏎ send · ⇧⏎ newline"
+          placeholder={t('chat.placeholder')}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
           onCompositionEnd={() => {
@@ -195,20 +192,16 @@ export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
           }}
         />
         <div className="ps-chat-actions">
-          <button
-            onClick={() => void send(false)}
-            disabled={draft.trim() === '' || sendBusy}
-            title="Add to the board without asking the agent"
-          >
-            Note
+          <button onClick={() => void send(false)} disabled={draft.trim() === '' || sendBusy} title={t('chat.note.title')}>
+            {t('chat.note')}
           </button>
           <button
             className="ps-primary"
             onClick={() => void send(true)}
             disabled={agentBusy || sendBusy}
-            title="The agent reads the board, chat, and recent edits, then replies"
+            title={t('chat.send.title')}
           >
-            {agentBusy ? '🤖 thinking…' : 'Send 🤖'}
+            {agentBusy ? `🤖 ${t('chat.thinking')}` : `${t('chat.send')} 🤖`}
           </button>
         </div>
       </footer>

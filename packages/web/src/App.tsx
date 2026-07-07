@@ -2,9 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, connectHub, type BoardInfo } from './api'
 import { CanvasBoard } from './board/CanvasBoard'
 import { ChatPanel } from './ChatPanel'
+import { Settings } from './Settings'
+import { useT } from './i18n'
 import { PHONE_QUERY, useMediaQuery } from './useMediaQuery'
 
 export function App() {
+  const t = useT()
   const [boards, setBoards] = useState<BoardInfo[]>([])
   const [active, setActive] = useState<string | null>(null)
   // survive reloads (mobile browsers discard background tabs freely) — don't
@@ -121,13 +124,14 @@ export function App() {
           <div className="ps-topbar-title">
             <i
               className={`ps-live${wsUp ? ' is-up' : ''}`}
-              title={wsUp ? '已連線' : '重新連線中…'}
+              title={wsUp ? t('live.connected') : t('live.reconnecting')}
               aria-label={wsUp ? 'connected' : 'reconnecting'}
             />
             {current ? current.replace(/\.canvas$/, '') : 'canvai'}
           </div>
           {agentBusy && <span className="ps-topbar-busy">🤖</span>}
-          <button className="ps-iconbtn" onClick={openChat} aria-label="chat">
+          <Settings />
+          <button className="ps-iconbtn" onClick={openChat} aria-label={t('chat.title')}>
             💬{chatUnread && <i className="ps-dot" />}
           </button>
         </header>
@@ -143,8 +147,11 @@ export function App() {
       )}
       <aside className={`ps-sidebar${drawerOpen ? ' is-open' : ''}`}>
         <header className="ps-brand">
-          <span className="ps-logo">canvai</span>
-          <span className="ps-tagline">your AI canvas partner</span>
+          <div className="ps-brand-text">
+            <span className="ps-logo">canvai</span>
+            <span className="ps-tagline">{t('sidebar.tagline')}</span>
+          </div>
+          {!phone && <Settings />}
         </header>
         <div className="ps-boards">
           {boards.map((board) => (
@@ -162,7 +169,7 @@ export function App() {
               </div>
               <label
                 className={`ps-active${board.path === active ? ' is-active' : ''}`}
-                title="active board: the shared focus for humans and agents"
+                title={t('board.activeTitle')}
                 onClick={(event) => event.stopPropagation()}
               >
                 <input
@@ -171,30 +178,30 @@ export function App() {
                   checked={board.path === active}
                   onChange={() => void api.setActive(board.path)}
                 />
-                active
+                {t('board.active')}
               </label>
             </div>
           ))}
-          {boards.length === 0 && !offline && <div className="ps-empty">no boards yet</div>}
-          {offline && <div className="ps-empty">hub unreachable — run `npm run serve`</div>}
+          {boards.length === 0 && !offline && <div className="ps-empty">{t('board.none')}</div>}
+          {offline && <div className="ps-empty">{t('board.unreachable')}</div>}
         </div>
         <button className="ps-newboard" onClick={() => void newBoard()}>
-          ＋ new board
+          {t('board.new')}
         </button>
         <footer className="ps-hint">
           {phone ? (
             <>
-              點卡片＝選取 → 下方工具列（編輯／連線／刪除）
+              {t('sidebar.hint.select')}
               <br />
-              拖曳卡片＝pin · 雙指縮放/平移 · ＋ card 在右下
+              {t('sidebar.hint.drag')}
             </>
           ) : (
             <>
-              drag = pin · double-click card = edit · double-click canvas = new card
+              {t('hint.desktop.1')}
               <br />
-              double-click edge = reverse arrow · Delete = remove
+              {t('hint.desktop.2')}
               <br />
-              agents connect via MCP (`canvai-hub`)
+              {t('hint.desktop.3')}
             </>
           )}
         </footer>
@@ -203,7 +210,7 @@ export function App() {
         {current ? (
           <CanvasBoard key={current} path={current} changeSignal={changeSignal} />
         ) : (
-          <div className="ps-placeholder">create a board to start sketching with your agent</div>
+          <div className="ps-placeholder">{t('board.placeholder')}</div>
         )}
       </main>
       <ChatPanel

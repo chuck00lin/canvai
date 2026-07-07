@@ -19,6 +19,7 @@ import { absolutePosition, CANVAS_COLORS, colorOf, toFlow, type PSFlowNode } fro
 import { nodeTypes } from './nodes'
 import { useLongPress } from './useLongPress'
 import { COARSE_QUERY, useMediaQuery } from '../useMediaQuery'
+import { useT } from '../i18n'
 
 interface Props {
   path: string
@@ -50,6 +51,7 @@ function BoardInner({ path, changeSignal }: Props) {
   // touch devices get a selection toolbar: double-click, drag-from-handle and
   // the Delete key have no natural touch equivalent
   const coarse = useMediaQuery(COARSE_QUERY)
+  const t = useT()
   const [selection, setSelection] = useState<{ nodes: string[]; edges: string[] }>({ nodes: [], edges: [] })
   const [editReq, setEditReq] = useState<EditRequestValue>({ id: '', seq: 0 })
   // toolbar shows the color palette instead of actions
@@ -290,7 +292,7 @@ function BoardInner({ path, changeSignal }: Props) {
           push(`>>> ENGAGE ${Math.round(performance.now() - gestureT0)}ms`)
         }
         if (type === 'pointerup' && gestureOnNode && !gestureEngaged) {
-          push(`>>> NO-ENGAGE（此次按在卡片上但拖曳未掛上）`)
+          push(`>>> NO-ENGAGE (pressed on a card but the drag never engaged)`)
         }
         if (type === 'touchmove' || type === 'pointermove') {
           if ((e as PointerEvent).buttons === 0 && type === 'pointermove') return // hover noise
@@ -730,7 +732,7 @@ function BoardInner({ path, changeSignal }: Props) {
         </EditRequest.Provider>
       </BoardActions.Provider>
       <button className="ps-addcard" onClick={addCard} title="add a text card at the viewport center">
-        ＋ card
+        {t('card.add')}
       </button>
       {coarse && (selNode || selEdge) && (
         <div className="ps-toolbar">
@@ -759,7 +761,7 @@ function BoardInner({ path, changeSignal }: Props) {
           ) : selNode ? (
             <>
               {(selNode.type === 'text' || selNode.type === 'group') && (
-                <button onClick={() => requestEdit(selNode.id)}>✏️ 編輯</button>
+                <button onClick={() => requestEdit(selNode.id)}>✏️ {t('toolbar.edit')}</button>
               )}
               <button onClick={() => setColorMode(true)} aria-label="card color">
                 🎨
@@ -770,7 +772,7 @@ function BoardInner({ path, changeSignal }: Props) {
                 }
                 aria-label="toggle discuss participation"
               >
-                {selNode.data.node.discuss === false ? '⏸ 加回討論' : '⏸ 退出討論'}
+                ⏸ {selNode.data.node.discuss === false ? t('toolbar.discuss.rejoin') : t('toolbar.discuss.leave')}
               </button>
               <button
                 className="ps-toolbar-danger"
@@ -784,17 +786,17 @@ function BoardInner({ path, changeSignal }: Props) {
                   mutate([{ kind: 'delete_node', id: selNode.id }])
                 }}
               >
-                {confirmDelete ? '❗確定刪除' : '🗑 刪除'}
+                {confirmDelete ? `❗${t('toolbar.delete.confirm')}` : `🗑 ${t('toolbar.delete')}`}
               </button>
             </>
           ) : selEdge ? (
             <>
-              <button onClick={() => reverseEdge(selEdge)}>⇄ 反向</button>
+              <button onClick={() => reverseEdge(selEdge)}>⇄ {t('toolbar.reverse')}</button>
               <button
                 className="ps-toolbar-danger"
                 onClick={() => mutate([{ kind: 'delete_edge', id: selEdge.id }])}
               >
-                🗑 刪除
+                🗑 {t('toolbar.delete')}
               </button>
             </>
           ) : null}
@@ -803,7 +805,7 @@ function BoardInner({ path, changeSignal }: Props) {
       {error && <div className="ps-error">{error}</div>}
       {debugTouch && (
         <pre className="ps-debug">
-          {debugLines.join('\n') || 'debugtouch: 觸控事件會顯示在這裡'}
+          {debugLines.join('\n') || 'debugtouch: touch events show here'}
         </pre>
       )}
     </div>
