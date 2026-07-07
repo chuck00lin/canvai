@@ -6,7 +6,7 @@ Terminals are a narrow pipe for visual thinkers, and today it is the only pipe w
 
 **Drop it into any repo, point [Claude Code](https://claude.com/claude-code) (or any MCP client) at it, and discuss in the browser instead of the terminal.** No design tool, no account, no Obsidian required — boards are plain [JSON Canvas](https://jsoncanvas.org) files in your repo, versioned by git. Your thinking stays yours.
 
-![canvai — a decision worked through with an AI partner](docs/images/canvai-example-decision.png)
+![canvai — an agent sketches a planning board live while you watch](docs/images/canvai-demo.gif)
 
 > **What works today:** add canvai to any repo, open the board in your browser, and Claude Code edits it live while you drag cards back at it — the whole human↔agent loop runs now (MCP hub + canvas library + React Flow web client, watcher → WebSocket). The board *protocol* is still soft: we're collecting real-world use cases before freezing it. **Wished you could discuss architecture with an agent on a whiteboard instead of a terminal? [Tell us about it](.github/ISSUE_TEMPLATE/use-case.yml)** — early use cases shape this project the most.
 
