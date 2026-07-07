@@ -41,6 +41,39 @@ const contains = (outer: Rect, inner: Rect): boolean =>
  * dragging a group carries its members, matching Obsidian's behavior; member
  * positions turn relative and are converted back on write.
  */
+type Side = 'top' | 'right' | 'bottom' | 'left'
+const SIDES: Side[] = ['top', 'right', 'bottom', 'left']
+
+function sideMid(n: Rect, s: Side): [number, number] {
+  const { x, y, width: w, height: h } = n
+  if (s === 'top') return [x + w / 2, y]
+  if (s === 'right') return [x + w, y + h / 2]
+  if (s === 'bottom') return [x + w / 2, y + h]
+  return [x, y + h / 2] // left
+}
+
+// Agent-drawn edges (add_edge with no explicit sides) used to always exit
+// right → enter left, which detours badly whenever cards aren't left-of-right.
+// Instead pick the pair of sides whose midpoints are closest, so the edge
+// takes the shortest natural route. Recomputed each render, so it stays
+// optimal as cards are dragged. Human-drawn edges keep their handle sides.
+function closestSides(a: Rect, b: Rect): { from: Side; to: Side } {
+  let best: { from: Side; to: Side } = { from: 'right', to: 'left' }
+  let min = Infinity
+  for (const fs of SIDES) {
+    const [ax, ay] = sideMid(a, fs)
+    for (const ts of SIDES) {
+      const [bx, by] = sideMid(b, ts)
+      const d = (ax - bx) ** 2 + (ay - by) ** 2
+      if (d < min) {
+        min = d
+        best = { from: fs, to: ts }
+      }
+    }
+  }
+  return best
+}
+
 export function toFlow(data: CanvasData, pinned: ReadonlySet<string>): { nodes: PSFlowNode[]; edges: FlowEdge[] } {
   const all = data.nodes ?? []
   const groups = all.filter((n) => n.type === 'group')
@@ -79,14 +112,27 @@ export function toFlow(data: CanvasData, pinned: ReadonlySet<string>): { nodes: 
     })
   }
 
+  const byId = new Map(all.map((n) => [n.id, n]))
   const flowEdges: FlowEdge[] = (data.edges ?? []).map((e) => {
     const stroke = colorOf(e.color) ?? '#9aa0a6'
+    let sourceHandle = e.fromSide as string | undefined
+    let targetHandle = e.toSide as string | undefined
+    // neither side declared = an agent edge: route it by shortest sides
+    if (!sourceHandle && !targetHandle) {
+      const s = byId.get(e.fromNode)
+      const t = byId.get(e.toNode)
+      if (s && t) {
+        const cs = closestSides(s, t)
+        sourceHandle = cs.from
+        targetHandle = cs.to
+      }
+    }
     return {
       id: e.id,
       source: e.fromNode,
       target: e.toNode,
-      sourceHandle: (e.fromSide as string | undefined) ?? 'right',
-      targetHandle: (e.toSide as string | undefined) ?? 'left',
+      sourceHandle: sourceHandle ?? 'right',
+      targetHandle: targetHandle ?? 'left',
       ...(e.label ? { label: e.label } : {}),
       markerEnd: { type: MarkerType.ArrowClosed, color: stroke },
       style: { stroke, strokeWidth: 1.6 },
