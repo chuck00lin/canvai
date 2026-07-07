@@ -127,9 +127,9 @@ export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
       // iOS delivers the composition-confirming Return AFTER compositionend
       // with isComposing already false — swallow Enters right after it
       if (Date.now() - compositionEndedAt.current < 150) return
-      // Enter only records; a handoff is deliberate (the 🤖 button) — CEO
-      // kept triggering agent turns while just taking notes
-      void send(false)
+      // Enter sends to the agent (the standard chat expectation). To jot on
+      // the board without a reply, use the "Note" button.
+      void send(true)
     }
   }
 
@@ -139,11 +139,11 @@ export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
     <aside className={`ps-chat${open ? ' is-open' : ''}`}>
       <header className="ps-chat-head">
         <span>
-          <i className={`ps-live${wsUp ? ' is-up' : ''}`} title={wsUp ? '已連線' : '重新連線中…'} />
+          <i className={`ps-live${wsUp ? ' is-up' : ''}`} title={wsUp ? 'connected' : 'reconnecting…'} />
           chat
         </span>
         <span className="ps-chat-head-right">
-          {!wsUp && <span className="ps-chat-reconnect">重新連線中…</span>}
+          {!wsUp && <span className="ps-chat-reconnect">reconnecting…</span>}
           {onClose && (
             <button className="ps-chat-close" onClick={onClose} aria-label="close chat">
               ✕
@@ -162,17 +162,24 @@ export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
             </div>
           </div>
         ))}
-        {messages.length === 0 && <div className="ps-chat-empty">文字走這裡，空間思考留在板上。Enter 只送出；要叫 agent 用「交棒 🤖」。</div>}
-        {agentBusy && busySince !== null && (
-          <div className="ps-status">
-            <span className="ps-chat-busy">🤖 思考中…</span> <Elapsed since={busySince} />
-            <span className="ps-status-hint">（工作回合可能要幾分鐘，回覆會直接出現在這裡）</span>
+        {messages.length === 0 && (
+          <div className="ps-chat-empty">
+            Words go here; spatial thinking stays on the board. <b>Send</b> and the agent reads the whole board and
+            replies — or <b>Note</b> to jot something without a reply.
           </div>
         )}
-        {!agentBusy && handoffSentAt !== null && !ackOverdue && <div className="ps-status">⏳ 已交棒，等待 agent 接手…</div>}
+        {agentBusy && busySince !== null && (
+          <div className="ps-status">
+            <span className="ps-chat-busy">🤖 thinking…</span> <Elapsed since={busySince} />
+            <span className="ps-status-hint">(a work turn can take a few minutes; the reply appears here)</span>
+          </div>
+        )}
+        {!agentBusy && handoffSentAt !== null && !ackOverdue && (
+          <div className="ps-status">⏳ sent — waiting for the agent…</div>
+        )}
         {!agentBusy && ackOverdue && (
           <div className="ps-status ps-status-warn">
-            ⚠ 交棒尚未被接手（{wsUp ? 'agent 可能正忙著別的回合，訊息已排隊' : '連線中斷，恢復後會補送狀態'}）
+            ⚠ the agent hasn’t picked this up yet ({wsUp ? 'it may be busy with another turn; your message is queued' : 'connection dropped — it will resend when reconnected'})
           </div>
         )}
       </div>
@@ -180,7 +187,7 @@ export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
       <footer className="ps-chat-input">
         <textarea
           value={draft}
-          placeholder="說點什麼…（Enter 送出，Shift+Enter 換行；交棒用 🤖）"
+          placeholder="Message the agent…   ⏎ send · ⇧⏎ newline"
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
           onCompositionEnd={() => {
@@ -188,11 +195,20 @@ export function ChatPanel({ signal, agentBusy, wsUp, open, onClose }: Props) {
           }}
         />
         <div className="ps-chat-actions">
-          <button onClick={() => void send(false)} disabled={draft.trim() === '' || sendBusy} title="只記錄，不呼叫 agent">
-            只送出
+          <button
+            onClick={() => void send(false)}
+            disabled={draft.trim() === '' || sendBusy}
+            title="Add to the board without asking the agent"
+          >
+            Note
           </button>
-          <button className="ps-primary" onClick={() => void send(true)} disabled={agentBusy || sendBusy} title="呼叫一個 agent 回合（會讀 chat、events 與 active board）">
-            {agentBusy ? '🤖 思考中…' : draft.trim() === '' ? '交棒 🤖' : '送出＋交棒 🤖'}
+          <button
+            className="ps-primary"
+            onClick={() => void send(true)}
+            disabled={agentBusy || sendBusy}
+            title="The agent reads the board, chat, and recent edits, then replies"
+          >
+            {agentBusy ? '🤖 thinking…' : 'Send 🤖'}
           </button>
         </div>
       </footer>

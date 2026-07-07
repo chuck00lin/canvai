@@ -45,6 +45,11 @@ node /path/to/canvai/packages/hub/src/cli.ts serve --root .
 
 Cards appear in the browser as the agent works. Drag one and it is **pinned**: `auto_layout` flows around it, and the agent picks your arrangement up on its next read (`events_since`). Double-click a card to edit markdown (``` ```mermaid ``` fences render as diagrams), draw edges from the side handles, and tick a board **active** in the sidebar to point the agent at it. The MCP process and the serve process coordinate purely through files — run either one alone, or both. This very repo dogfoods the loop: [`examples/decision.canvas`](examples/decision.canvas) is a board worked through with an agent.
 
+The side chat is for words; the board is for spatial thinking. **Send** and the agent reads the whole board and replies; **Note** just jots on the board without a reply.
+
+<img src="docs/images/canvai-chat.png" alt="canvai chat — Send asks the agent, Note just jots" width="340">
+
+
 **Obsidian is optional.** The web client is the whole UI — nothing else to install. But because boards are just [JSON Canvas](https://jsoncanvas.org) files, if you already use [Obsidian](https://obsidian.md) you can open the repo as a vault and they render (and edit) natively. canvai reads and writes that format; it credits it, it doesn't depend on it.
 
 **Remote / same-VPN access.** The hub binds `127.0.0.1` by default. To open a board from another machine on your VPN or LAN:
