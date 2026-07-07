@@ -202,7 +202,7 @@ function BoardInner({ path, changeSignal }: Props) {
   }, [coarse])
 
   // remote diagnostics: open /?token=…&debugtouch — events show on-screen AND
-  // stream to the hub (.pairsketch/debug.jsonl) so gesture bugs on real
+  // stream to the hub (.canvai/debug.jsonl) so gesture bugs on real
   // devices can be read server-side (emulators don't reproduce iOS arbitration)
   const [debugLines, setDebugLines] = useState<string[]>([])
   const debugTouch = useMemo(() => new URLSearchParams(window.location.search).has('debugtouch'), [])

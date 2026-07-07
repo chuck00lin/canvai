@@ -3,7 +3,7 @@ import path from 'node:path'
 import process from 'node:process'
 
 /**
- * The text side-channel: `.pairsketch/chat.jsonl`. Prose that shouldn't
+ * The text side-channel: `.canvai/chat.jsonl`. Prose that shouldn't
  * become cards lives here — not every human message deserves a box on the
  * canvas, and not every agent reply is a diagram. Like everything else,
  * it's a file: both hub processes read and append it directly.
@@ -20,7 +20,7 @@ export interface ChatMessage {
 let seq = 0
 
 function chatFile(root: string): string {
-  return path.join(root, '.pairsketch', 'chat.jsonl')
+  return path.join(root, '.canvai', 'chat.jsonl')
 }
 
 export async function appendChat(

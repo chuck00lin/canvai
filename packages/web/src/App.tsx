@@ -124,7 +124,7 @@ export function App() {
               title={wsUp ? '已連線' : '重新連線中…'}
               aria-label={wsUp ? 'connected' : 'reconnecting'}
             />
-            {current ? current.replace(/\.canvas$/, '') : 'pairsketch'}
+            {current ? current.replace(/\.canvas$/, '') : 'canvai'}
           </div>
           {agentBusy && <span className="ps-topbar-busy">🤖</span>}
           <button className="ps-iconbtn" onClick={openChat} aria-label="chat">
@@ -143,8 +143,8 @@ export function App() {
       )}
       <aside className={`ps-sidebar${drawerOpen ? ' is-open' : ''}`}>
         <header className="ps-brand">
-          <span className="ps-logo">pairsketch</span>
-          <span className="ps-tagline">think in pictures, together</span>
+          <span className="ps-logo">canvai</span>
+          <span className="ps-tagline">your AI canvas partner</span>
         </header>
         <div className="ps-boards">
           {boards.map((board) => (
@@ -194,7 +194,7 @@ export function App() {
               <br />
               double-click edge = reverse arrow · Delete = remove
               <br />
-              agents connect via MCP (`pairsketch-hub`)
+              agents connect via MCP (`canvai-hub`)
             </>
           )}
         </footer>

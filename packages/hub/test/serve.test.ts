@@ -4,7 +4,7 @@ import path from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { afterEach, describe, expect, it } from 'vitest'
 import WebSocket from 'ws'
-import { parseCanvas, serializeCanvas } from '@pairsketch/canvas-kit'
+import { parseCanvas, serializeCanvas } from '@canvai/canvas-kit'
 import { startServe, type RunningServer } from '../src/serve.ts'
 
 const FIXTURE = [
@@ -32,7 +32,7 @@ afterEach(async () => {
 })
 
 async function setup(options: { token?: string } = {}) {
-  const root = await mkdtemp(path.join(tmpdir(), 'pairsketch-serve-'))
+  const root = await mkdtemp(path.join(tmpdir(), 'canvai-serve-'))
   await mkdir(path.join(root, 'discuss'), { recursive: true })
   await writeFile(path.join(root, 'discuss', 'demo.canvas'), FIXTURE, 'utf8')
   running = await startServe(root, { port: 0, ...options })
@@ -47,7 +47,7 @@ async function until(check: () => boolean | Promise<boolean>, timeoutMs = 5000):
   }
 }
 
-describe('pairsketch hub serve mode', () => {
+describe('canvai hub serve mode', () => {
   it('serves boards over REST and applies human mutations with pinning', async () => {
     const { root, base } = await setup()
 

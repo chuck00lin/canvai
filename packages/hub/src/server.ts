@@ -6,7 +6,7 @@ import {
   structuralProjection,
   type CanvasData,
   type Op,
-} from '@pairsketch/canvas-kit'
+} from '@canvai/canvas-kit'
 import { createBoard, listBoards, readBoard, readBoardRaw, writeBoard } from './boards.ts'
 import { getActiveBoard, getPinned, removePinned, setActiveBoard } from './state.ts'
 import { appendEvent, readEventsSince, type HubEvent } from './events.ts'
@@ -106,7 +106,7 @@ function formatEvent(event: HubEvent): string {
 }
 
 export function createHubServer(root: string): McpServer {
-  const server = new McpServer({ name: 'pairsketch-hub', version: '0.1.0' })
+  const server = new McpServer({ name: 'canvai-hub', version: '0.1.0' })
 
   const resolveBoard = async (board?: string): Promise<string> => {
     if (board) return board

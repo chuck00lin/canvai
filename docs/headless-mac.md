@@ -1,4 +1,4 @@
-# Running pairsketch on an always-on Mac
+# Running canvai on an always-on Mac
 
 The hub is designed to live on a 24/7 machine: boards are files in repos, the
 serve process watches them, and you reach the web client over your tailnet/VPN.
@@ -7,8 +7,8 @@ serve process watches them, and you reach the web client over your tailnet/VPN.
 
 ```bash
 # requirements: Node >= 23.6 (runs the TS directly), git
-git clone <your-private-repo-url> ~/pairsketch
-cd ~/pairsketch && npm install && npm run web:build
+git clone <your-private-repo-url> ~/canvai
+cd ~/canvai && npm install && npm run web:build
 ```
 
 If you want the **handoff button to spawn agent turns** on this machine
@@ -28,7 +28,7 @@ headless box; leave the 24/7 machine on `spawn`.
 
 ## Serving a repo with launchd
 
-`~/Library/LaunchAgents/com.pairsketch.hub.plist` — adjust the three paths,
+`~/Library/LaunchAgents/com.canvai.hub.plist` — adjust the three paths,
 the token, and the target repo:
 
 ```xml
@@ -37,11 +37,11 @@ the token, and the target repo:
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>com.pairsketch.hub</string>
+  <key>Label</key><string>com.canvai.hub</string>
   <key>ProgramArguments</key>
   <array>
     <string>/opt/homebrew/bin/node</string>
-    <string>/Users/YOU/pairsketch/packages/hub/src/cli.ts</string>
+    <string>/Users/YOU/canvai/packages/hub/src/cli.ts</string>
     <string>serve</string>
     <string>--root</string><string>/Users/YOU/work/some-repo</string>
     <string>--host</string><string>0.0.0.0</string>
@@ -49,15 +49,15 @@ the token, and the target repo:
   </array>
   <key>KeepAlive</key><true/>
   <key>RunAtLoad</key><true/>
-  <key>StandardOutPath</key><string>/tmp/pairsketch-hub.log</string>
-  <key>StandardErrorPath</key><string>/tmp/pairsketch-hub.log</string>
+  <key>StandardOutPath</key><string>/tmp/canvai-hub.log</string>
+  <key>StandardErrorPath</key><string>/tmp/canvai-hub.log</string>
 </dict>
 </plist>
 ```
 
 ```bash
-launchctl load ~/Library/LaunchAgents/com.pairsketch.hub.plist
-tail -f /tmp/pairsketch-hub.log   # prints every reachable URL incl. your tailnet IP
+launchctl load ~/Library/LaunchAgents/com.canvai.hub.plist
+tail -f /tmp/canvai-hub.log   # prints every reachable URL incl. your tailnet IP
 ```
 
 Then open `http://<tailnet-ip>:5199/?token=CHOOSE-A-SECRET` from anywhere on
@@ -71,5 +71,5 @@ your VPN. One plist per served repo (give each a distinct `Label` and
   the first time, or pre-approve it
   (`sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add "$(readlink -f "$(which node)")" && sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp "$(readlink -f "$(which node)")"`);
 - prevent sleep: Energy Saver → never sleep, or `sudo pmset -a sleep 0`;
-- `.pairsketch/` (chat/events/pins) is per-checkout working state and stays
+- `.canvai/` (chat/events/pins) is per-checkout working state and stays
   gitignored — boards (`*.canvas`) are the content that syncs through git.

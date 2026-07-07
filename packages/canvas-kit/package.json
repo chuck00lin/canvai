@@ -1,5 +1,5 @@
 {
-  "name": "@pairsketch/canvas-kit",
+  "name": "@canvai/canvas-kit",
   "version": "0.1.0",
   "description": "JSON Canvas toolkit: style-preserving round-trip IO, structural projection, semantic ops, ELK auto-layout",
   "type": "module",

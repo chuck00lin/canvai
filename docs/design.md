@@ -1,4 +1,4 @@
-# pairsketch — founding design document
+# canvai — founding design document
 
 *2026-07-03 · status: RFC. Everything here is open to challenge — open an issue citing the decision number (D1–D5).*
 
@@ -6,7 +6,7 @@
 
 Most human–agent interaction happens in a terminal: a great medium for text, a terrible one for visual thinkers. Architecture discussions, trade-off maps, pipeline designs — these want a whiteboard. Commercial whiteboards (Miro, FigJam) have humans as the only first-class citizens, live in the cloud, and know nothing about your repository.
 
-pairsketch's premise: **every repo can host a visual discussion space** whose clients are humans *and* agents. Humans pick an *active board* and manipulate it spatially; agents observe, propose, and edit the same board through a protocol that suits them. Boards are files in the repo, so the discussion is versioned, greppable, and owned by you.
+canvai's premise: **every repo can host a visual discussion space** whose clients are humans *and* agents. Humans pick an *active board* and manipulate it spatially; agents observe, propose, and edit the same board through a protocol that suits them. Boards are files in the repo, so the discussion is versioned, greppable, and owned by you.
 
 ## Framing: two ontologies, one asymmetry
 
@@ -93,7 +93,7 @@ Phase 0–1 use file-level last-write-wins with atomic writes (temp file + renam
 flowchart TB
   W["🧑 Web client — React Flow editor<br/>board sidebar · active checkbox · md/mermaid cards · drag = pin"]
   A["🤖 Agent — any MCP client<br/>structure in, projections out"]
-  H["pairsketch hub — thin local server<br/>watcher ↔ in-memory doc · WebSocket broadcast · MCP server · ELK layout"]
+  H["canvai hub — thin local server<br/>watcher ↔ in-memory doc · WebSocket broadcast · MCP server · ELK layout"]
   F["repo/discuss/*.canvas<br/>JSON Canvas 1.0 · git-versioned · source of truth"]
   O["Obsidian (optional client)"]
 
@@ -145,7 +145,7 @@ Planned package layout (monorepo, TypeScript):
 | [excalidash-mcp](https://github.com/davifernan/excalidash-mcp), [mcp_excalidraw](https://github.com/yctimlin/mcp_excalidraw), [Excalidraw+ MCP](https://plus.excalidraw.com/docs/mcp) | agents drawing live on web whiteboards (WebSocket push) | the "agent draws, browser updates live" experience works |
 | [tldraw Agent Starter Kit](https://tldraw.dev/starter-kits/agent), [Agents on the Canvas](https://gitnation.com/contents/agents-on-the-canvas-with-tldraw) | cursor-style agents on an infinite canvas; official multi-agent research | the best reference for agent-on-canvas interaction design (viewports, partial observation, streamed ops) |
 | [mermaid-visual-editor](https://github.com/saketkattu/mermaid-visual-editor) | React Flow canvas, Mermaid derived one-way | direct evidence for D2 |
-| [react-jsoncanvas](https://github.com/Digital-Tvilling/react-jsoncanvas), [JSON-Canvas-Viewer](https://github.com/hesprs/JSON-Canvas-Viewer), [jsoncanvas.org apps](https://jsoncanvas.org/docs/apps/) | JSON Canvas web renderers (viewer-grade) | the format has cross-tool life; a mature open web *editor* is the gap pairsketch fills |
+| [react-jsoncanvas](https://github.com/Digital-Tvilling/react-jsoncanvas), [JSON-Canvas-Viewer](https://github.com/hesprs/JSON-Canvas-Viewer), [jsoncanvas.org apps](https://jsoncanvas.org/docs/apps/) | JSON Canvas web renderers (viewer-grade) | the format has cross-tool life; a mature open web *editor* is the gap canvai fills |
 | [Relay canvas multiplayer](https://docs.relay.md/features/canvas-multiplayer/) | CRDT multiplayer for Obsidian, canvas in beta | the Obsidian-side multi-human option, if ever needed |
 
 ## References

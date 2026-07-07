@@ -1,17 +1,17 @@
 {
-  "name": "@pairsketch/hub",
+  "name": "@canvai/hub",
   "version": "0.1.0",
-  "description": "pairsketch hub — MCP server exposing repo-native JSON Canvas boards to AI agents",
+  "description": "canvai hub — MCP server exposing repo-native JSON Canvas boards to AI agents",
   "type": "module",
   "license": "MIT",
   "bin": {
-    "pairsketch-hub": "./src/cli.ts"
+    "canvai-hub": "./src/cli.ts"
   },
   "exports": {
     ".": "./src/server.ts"
   },
   "dependencies": {
-    "@pairsketch/canvas-kit": "0.1.0",
+    "@canvai/canvas-kit": "0.1.0",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "ws": "^8.18.0",
     "zod": "^3.24.0"

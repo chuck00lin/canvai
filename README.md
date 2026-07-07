@@ -1,8 +1,10 @@
-# pairsketch
+# canvai
 
-**Pair programming, but on a whiteboard — humans and AI agents thinking in pictures, together.**
+**Your AI canvas partner — a discussion tool for visual thinkers, on every project.**
 
-Terminals are a narrow pipe for visual thinkers, and today it is the only pipe we share with our agents. pairsketch gives any repository a shared whiteboard — like Miro or FigJam, except the participants include AI agents. Humans drag cards around in a browser (or in Obsidian); agents read and edit the same boards through MCP. The boards are plain [JSON Canvas](https://jsoncanvas.org) files living in your repo, versioned by git like everything else.
+Terminals are a narrow pipe for visual thinkers, and today it is the only pipe we share with our agents. canvai gives you and an AI partner one shared, infinite canvas: drop ideas as cards, connect them, sketch the shape of a problem — and the agent reads the whole board, replies in place, and reshapes it with you. Like Miro or FigJam, except the participants include AI agents. Humans drag cards in a browser (or in Obsidian); agents read and edit the same boards through MCP. Boards are plain [JSON Canvas](https://jsoncanvas.org) files in your repo, versioned by git — your thinking stays yours.
+
+![canvai — a decision worked through with an AI partner](docs/images/canvai-example-decision.png)
 
 > **Status: Phase 0 + Phase 1 core shipped, protocol still soft.** The MCP hub, the canvas library, and a live web client (watcher + WebSocket + React Flow) work today — see Quickstart. We are collecting real-world use cases before freezing the protocol. **If you have ever wished you could discuss architecture with an agent on a whiteboard instead of a terminal, [tell us about it](.github/ISSUE_TEMPLATE/use-case.yml)** — early requirements shape this project the most.
 
@@ -11,9 +13,9 @@ Terminals are a narrow pipe for visual thinkers, and today it is the only pipe w
 Requires Node ≥ 23.6 (runs TypeScript natively; no build step).
 
 ```bash
-git clone <repo-url> && cd pairsketch
+git clone <repo-url> && cd canvai
 npm install
-npm test   # 19 tests: round-trip fidelity, semantic ops, ELK layout, full MCP loop
+npm test   # 29 tests: round-trip fidelity, semantic ops, ELK layout, full MCP loop
 ```
 
 Hook the hub into **any** repo — add to that repo's `.mcp.json` (Claude Code) or your MCP client's config:
@@ -21,9 +23,9 @@ Hook the hub into **any** repo — add to that repo's `.mcp.json` (Claude Code) 
 ```json
 {
   "mcpServers": {
-    "pairsketch": {
+    "canvai": {
       "command": "node",
-      "args": ["/path/to/pairsketch/packages/hub/src/cli.ts", "--root", "."]
+      "args": ["/path/to/canvai/packages/hub/src/cli.ts", "--root", "."]
     }
   }
 }
@@ -63,7 +65,7 @@ Diagrams have two possible sources of truth, and the split maps exactly onto who
 | Natural for | **agents** — one line of text per relation | **humans** — dragging, grouping, whitespace as meaning |
 | Weakness | positions have nowhere to live → can't drag | verbose coordinates → token cost, spatial reasoning |
 
-pairsketch refuses to pick a side. Instead:
+canvai refuses to pick a side. Instead:
 
 - **The persistence layer is position-first**: `discuss/*.canvas` files (JSON Canvas 1.0) in your repo, so human drags always have somewhere to land — and Obsidian opens them natively, for free.
 - **The agent interface is structure-first**: agents speak semantic operations over MCP (`add_node`, `connect`, `insert_mermaid`, …) and read a coordinate-free structural projection. An auto-layout engine (ELK) turns structure into positions. **Agents never think in pixels.**
@@ -76,7 +78,7 @@ pairsketch refuses to pick a side. Instead:
 flowchart TB
   W["🧑 Web client — React Flow editor<br/>board list · active-board checkbox · md/mermaid cards"]
   A["🤖 Agent — Claude Code or any MCP client<br/>speaks structure, never pixels"]
-  H["pairsketch hub — thin local server<br/>file watcher · WebSocket · MCP · ELK auto-layout"]
+  H["canvai hub — thin local server<br/>file watcher · WebSocket · MCP · ELK auto-layout"]
   F["repo/discuss/*.canvas<br/>JSON Canvas 1.0 · git-versioned · source of truth"]
   O["Obsidian (optional client)"]
 
@@ -124,7 +126,7 @@ The most valuable contribution right now is a **use case**: who you are, what yo
 
 ## Prior art & credits
 
-pairsketch stands on ideas validated by others: [Kanvas](https://github.com/XMihura/Kanvas) (humans + agents on Obsidian Canvas via semantic CLI ops), [Bragi Canvas](https://community.obsidian.md/plugins/bragi-canvas) (active canvas over local MCP), the Excalidraw MCP ecosystem ([excalidash-mcp](https://github.com/davifernan/excalidash-mcp), [mcp_excalidraw](https://github.com/yctimlin/mcp_excalidraw)) for live agent drawing, the [tldraw Agent Starter Kit](https://tldraw.dev/starter-kits/agent) for agent-on-canvas interaction design, and the [JSON Canvas](https://jsoncanvas.org) open format by Obsidian. The full survey with sources is in the [design doc](docs/design.md#prior-art).
+canvai stands on ideas validated by others: [Kanvas](https://github.com/XMihura/Kanvas) (humans + agents on Obsidian Canvas via semantic CLI ops), [Bragi Canvas](https://community.obsidian.md/plugins/bragi-canvas) (active canvas over local MCP), the Excalidraw MCP ecosystem ([excalidash-mcp](https://github.com/davifernan/excalidash-mcp), [mcp_excalidraw](https://github.com/yctimlin/mcp_excalidraw)) for live agent drawing, the [tldraw Agent Starter Kit](https://tldraw.dev/starter-kits/agent) for agent-on-canvas interaction design, and the [JSON Canvas](https://jsoncanvas.org) open format by Obsidian. The full survey with sources is in the [design doc](docs/design.md#prior-art).
 
 ## License
 

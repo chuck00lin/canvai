@@ -9,11 +9,11 @@ import { startServe } from './serve.ts'
 const args = process.argv.slice(2)
 
 if (args.includes('--help') || args.includes('-h')) {
-  console.log(`pairsketch-hub — repo-native JSON Canvas boards for humans + AI agents
+  console.log(`canvai-hub — repo-native JSON Canvas boards for humans + AI agents
 
 usage:
-  pairsketch-hub [--root <path>]                              MCP server on stdio (for agent harnesses)
-  pairsketch-hub serve [--root] [--port] [--host] [--token]   HTTP + WebSocket server for the web client
+  canvai-hub [--root <path>]                              MCP server on stdio (for agent harnesses)
+  canvai-hub serve [--root] [--port] [--host] [--token]   HTTP + WebSocket server for the web client
 
 options:
   --root <path>    repo root to serve (default: cwd)
@@ -23,14 +23,14 @@ options:
   --token <secret> require a bearer token (or ?token=) on /api and /ws
   --agent-cmd <t>  command for the handoff button; the prompt is piped to
                    stdin, or replaces a {prompt} placeholder if present
-                   (default: 'claude -p --mcp-config .mcp.json --allowedTools mcp__pairsketch')
+                   (default: 'claude -p --mcp-config .mcp.json --allowedTools mcp__canvai')
   --handoff-mode <m>  'spawn' (default) runs a fresh agent turn per handoff;
                    'signal' only broadcasts handoff_requested on /ws, for a
                    long-running session listening with its own context
   --handoff-timeout <s>  kill a spawned agent turn after this many seconds
                    (default: 300)
 
-Both modes coordinate through files (.canvas, .pairsketch/) — run them
+Both modes coordinate through files (.canvas, .canvai/) — run them
 side by side, or either one alone.`)
   process.exit(0)
 }
@@ -67,7 +67,7 @@ if (args[0] === 'serve') {
   const handoffTimeout = flag('--handoff-timeout')
   const handoffTimeoutMs = handoffTimeout ? Number(handoffTimeout) * 1000 : undefined
   const running = await startServe(root, { port, host, token, agentCmd, handoffMode, handoffTimeoutMs })
-  console.error(`pairsketch hub: serving ${root}`)
+  console.error(`canvai hub: serving ${root}`)
   const suffix = token ? `/?token=${encodeURIComponent(token)}` : '/'
   for (const address of host === '0.0.0.0' ? reachableAddresses() : [host]) {
     console.error(`  web    http://${address}:${running.port}${suffix}`)
@@ -79,5 +79,5 @@ if (args[0] === 'serve') {
   const server = createHubServer(root)
   await server.connect(new StdioServerTransport())
   // stdout carries the MCP protocol; log to stderr only
-  console.error(`pairsketch hub: MCP over stdio, root ${root}`)
+  console.error(`canvai hub: MCP over stdio, root ${root}`)
 }

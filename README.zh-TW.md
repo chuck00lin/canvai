@@ -1,8 +1,10 @@
-# pairsketch（繁體中文）
+# canvai（繁體中文）
 
-**Pair programming 的白板版——人機結對，用圖思考。**
+**你的 AI 畫布夥伴——為視覺化思考者打造的討論工具,適用每一個 project。**
 
-Terminal 對視覺化思考者是一條太窄的管道。pairsketch 讓任何 repo 擁有一個共享白板——像 Miro / FigJam，但參與者包含 AI agent。人類在瀏覽器（或 Obsidian）裡拖拉卡片；agent 透過 MCP 讀寫同一塊板。板子就是 repo 裡的 [JSON Canvas](https://jsoncanvas.org) 純文字檔，跟程式碼一起被 git 版控。
+Terminal 對視覺化思考者是一條太窄的管道。canvai 讓你和一個 AI 夥伴共享一張無限畫布:把想法丟成卡片、連起來、把問題的形狀畫出來——agent 讀整張板、就地回應、跟你一起重塑它。像 Miro / FigJam,但參與者包含 AI agent。人類在瀏覽器(或 Obsidian)裡拖拉卡片;agent 透過 MCP 讀寫同一塊板。板子就是 repo 裡的 [JSON Canvas](https://jsoncanvas.org) 純文字檔,跟程式碼一起被 git 版控——你的思考仍屬於你。
+
+![canvai — 跟 AI 夥伴一起想清楚一個決策](docs/images/canvai-example-decision.png)
 
 > **目前狀態：Phase 0＋Phase 1 核心已出貨，協定仍在收斂。** MCP hub、canvas 函式庫、以及即時 web client（watcher＋WebSocket＋React Flow）今天就能用——見英文版 README 的 Quickstart。我們正在收集真實使用情境來定協定。**如果你曾希望能跟 agent 在白板上而不是 terminal 裡討論架構，[告訴我們你的情境](.github/ISSUE_TEMPLATE/use-case.yml)**——早期的需求對這個專案影響最大。
 

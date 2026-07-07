@@ -3,7 +3,7 @@ import path from 'node:path'
 import process from 'node:process'
 
 /**
- * Append-only event log at `.pairsketch/events.jsonl`. Both hub processes
+ * Append-only event log at `.canvai/events.jsonl`. Both hub processes
  * write to it: the serve process logs what humans did (web edits, Obsidian
  * edits spotted by the watcher), the MCP process logs what agents did.
  * Agents replay it through the `events_since` tool; the watcher reads the
@@ -24,7 +24,7 @@ export interface HubEvent {
 let seq = 0
 
 function eventsFile(root: string): string {
-  return path.join(root, '.pairsketch', 'events.jsonl')
+  return path.join(root, '.canvai', 'events.jsonl')
 }
 
 export async function appendEvent(

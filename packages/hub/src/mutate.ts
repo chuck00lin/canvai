@@ -1,4 +1,4 @@
-import { genId, nodes, edges, type CanvasData, type CanvasNode, type Side } from '@pairsketch/canvas-kit'
+import { genId, nodes, edges, type CanvasData, type CanvasNode, type Side } from '@canvai/canvas-kit'
 
 /**
  * The HUMAN write path, used by the web client. Unlike agent ops (semantic,

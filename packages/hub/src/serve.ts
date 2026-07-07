@@ -3,7 +3,7 @@ import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer, WebSocket } from 'ws'
-import { diffBoards, isEmptyDiff, type CanvasData } from '@pairsketch/canvas-kit'
+import { diffBoards, isEmptyDiff, type CanvasData } from '@canvai/canvas-kit'
 import { createBoard, listBoards, readBoard, readBoardRaw, writeBoard } from './boards.ts'
 import { addPinned, getActiveBoard, getPinned, removePinned, setActiveBoard } from './state.ts'
 import { appendEvent, readEventsSince, recentAgentWrite } from './events.ts'
@@ -13,7 +13,7 @@ import { applyMutations, type Mutation } from './mutate.ts'
 import { watchRoot } from './watch.ts'
 
 /**
- * The serve process: what a human runs (`pairsketch-hub serve`). Serves the
+ * The serve process: what a human runs (`canvai-hub serve`). Serves the
  * web client, a small REST API, and a WebSocket that pushes "something
  * changed" signals. Agents connect through the separate MCP stdio process;
  * the two processes coordinate purely through files (.canvas, state.json,
@@ -317,7 +317,7 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
       // here so gesture bugs on real devices can be read server-side
       const body = (await readJson(req)) as { lines?: string[] }
       if (Array.isArray(body.lines) && body.lines.length > 0 && body.lines.length <= 500) {
-        const file = path.join(root, '.pairsketch', 'debug.jsonl')
+        const file = path.join(root, '.canvai', 'debug.jsonl')
         await appendFile(file, body.lines.map((l) => String(l).slice(0, 300)).join('\n') + '\n', 'utf8')
       }
       return sendJson(res, 200, { ok: true })
@@ -404,10 +404,10 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
       if (pathname === '/') {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
         res.end(
-          '<!doctype html><meta charset="utf-8"><title>pairsketch</title>' +
+          '<!doctype html><meta charset="utf-8"><title>canvai</title>' +
             '<body style="font-family:system-ui;padding:3rem;max-width:40rem">' +
-            '<h1>pairsketch hub is running</h1>' +
-            '<p>The web client is not built yet. Run <code>npm run web:build</code> in the pairsketch repo, then reload.</p>' +
+            '<h1>canvai hub is running</h1>' +
+            '<p>The web client is not built yet. Run <code>npm run web:build</code> in the canvai repo, then reload.</p>' +
             '<p>The API is live: <a href="/api/boards">/api/boards</a></p>',
         )
         return

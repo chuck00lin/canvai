@@ -18,7 +18,7 @@ import { getActiveBoard } from './state.ts'
  * (Variadic flags like --allowedTools would swallow a trailing positional
  * prompt, and multi-line prompts survive stdin unharmed.)
  */
-export const DEFAULT_AGENT_CMD = 'claude -p --mcp-config .mcp.json --allowedTools mcp__pairsketch'
+export const DEFAULT_AGENT_CMD = 'claude -p --mcp-config .mcp.json --allowedTools mcp__canvai'
 
 export interface Summoner {
   readonly running: boolean
@@ -77,18 +77,18 @@ async function buildPrompt(root: string, note?: string): Promise<string> {
   const cursor = events.at(-1)?.id
 
   return [
-    'You are summoned to a pairsketch board session (the human pressed "hand to agent").',
+    'You are summoned to a canvai board session (the human pressed "hand to agent").',
     `Repo root: ${root}`,
     active ? `Active board: ${active}` : 'No active board set.',
     cursor ? `Latest event cursor: ${cursor}` : 'No events yet.',
     note ? `The human's note: ${note}` : '',
     chatTail ? `Recent chat:\n${chatTail}` : '',
     '',
-    'Use the pairsketch MCP tools. Token discipline:',
+    'Use the canvai MCP tools. Token discipline:',
     '- start from events_since (your cursor is in the recent chat, or use the one above) and read_board in "structure" mode — do NOT read full boards unless you truly need exact text;',
     '- reply with post_chat for prose, apply_ops for anything structural/spatial;',
     '- keep it to one focused turn: respond to what changed, then stop.',
-    'If MCP tools are unavailable, read .pairsketch/events.jsonl and the .canvas files directly, and reply by printing text (it will be relayed to the chat panel).',
+    'If MCP tools are unavailable, read .canvai/events.jsonl and the .canvas files directly, and reply by printing text (it will be relayed to the chat panel).',
     "Respond in the human's language.",
   ]
     .filter((line) => line !== '')

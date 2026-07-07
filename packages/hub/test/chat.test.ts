@@ -19,7 +19,7 @@ afterEach(async () => {
 })
 
 async function setup(agentCmd?: string, handoffMode?: 'spawn' | 'signal') {
-  const root = await mkdtemp(path.join(tmpdir(), 'pairsketch-chat-'))
+  const root = await mkdtemp(path.join(tmpdir(), 'canvai-chat-'))
   await mkdir(path.join(root, 'discuss'), { recursive: true })
   await writeFile(path.join(root, 'discuss', 'demo.canvas'), FIXTURE, 'utf8')
   running = await startServe(root, { port: 0, agentCmd, handoffMode })
@@ -63,7 +63,7 @@ describe('chat side-channel', () => {
   })
 
   it('handoff spawns the agent command, passes a context prompt, and relays stdout to chat', async () => {
-    const probeRoot = await mkdtemp(path.join(tmpdir(), 'pairsketch-probe-'))
+    const probeRoot = await mkdtemp(path.join(tmpdir(), 'canvai-probe-'))
     const script = path.join(probeRoot, 'fake-agent.mjs')
     await writeFile(
       script,
@@ -99,7 +99,7 @@ describe('chat side-channel', () => {
   })
 
   it('default mode (no {prompt} placeholder) pipes the prompt via stdin', async () => {
-    const probeRoot = await mkdtemp(path.join(tmpdir(), 'pairsketch-probe-'))
+    const probeRoot = await mkdtemp(path.join(tmpdir(), 'canvai-probe-'))
     const script = path.join(probeRoot, 'stdin-agent.mjs')
     await writeFile(
       script,

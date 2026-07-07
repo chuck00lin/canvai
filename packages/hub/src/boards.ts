@@ -9,7 +9,7 @@ import {
   DEFAULT_STYLE,
   type CanvasData,
   type CanvasStyle,
-} from '@pairsketch/canvas-kit'
+} from '@canvai/canvas-kit'
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'coverage'])
 

@@ -1,10 +1,10 @@
-# Contributing to pairsketch
+# Contributing to canvai
 
 Thanks for stopping by — this project is at the stage where contributions shape it the most.
 
 ## Right now: use cases beat code
 
-pairsketch is in the design/RFC phase. Before the protocol freezes, the most valuable thing you can give us is a **concrete use case**:
+canvai is in the design/RFC phase. Before the protocol freezes, the most valuable thing you can give us is a **concrete use case**:
 
 - Who are you (role, workflow)?
 - What discussion would you put on a board, in which kind of repo?

@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "pairsketch": {
+    "canvai": {
       "command": "node",
       "args": ["packages/hub/src/cli.ts"]
     }

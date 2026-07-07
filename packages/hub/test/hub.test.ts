@@ -26,7 +26,7 @@ const FIXTURE = [
 ].join('\n') + '\n'
 
 async function setup() {
-  const root = await mkdtemp(path.join(tmpdir(), 'pairsketch-'))
+  const root = await mkdtemp(path.join(tmpdir(), 'canvai-'))
   await mkdir(path.join(root, 'discuss'), { recursive: true })
   await writeFile(path.join(root, 'discuss', 'demo.canvas'), FIXTURE, 'utf8')
   const server = createHubServer(root)
@@ -41,7 +41,7 @@ function textOf(result: unknown): string {
   return (r.content ?? []).map((c) => c.text ?? '').join('\n')
 }
 
-describe('pairsketch hub over MCP', () => {
+describe('canvai hub over MCP', () => {
   it('drives the full agent loop: discover, focus, read, edit, verify', async () => {
     const { root, client } = await setup()
 
@@ -51,7 +51,7 @@ describe('pairsketch hub over MCP', () => {
 
     // focus
     await client.callTool({ name: 'set_active_board', arguments: { board: 'discuss/demo.canvas' } })
-    await stat(path.join(root, '.pairsketch', 'state.json')) // persisted
+    await stat(path.join(root, '.canvai', 'state.json')) // persisted
     const active = await client.callTool({ name: 'get_active_board', arguments: {} })
     expect(textOf(active)).toContain('board: discuss/demo.canvas')
     expect(textOf(active)).toContain('seed idea')

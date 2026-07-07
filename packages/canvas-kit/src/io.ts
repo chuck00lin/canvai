@@ -14,7 +14,7 @@ export interface CanvasStyle {
   trailingNewline: boolean
 }
 
-/** Style for files pairsketch creates: current Obsidian output (tabs, spaced colons). */
+/** Style for files canvai creates: current Obsidian output (tabs, spaced colons). */
 export const DEFAULT_STYLE: CanvasStyle = { indent: '\t', colonSpace: true, trailingNewline: true }
 
 export function detectStyle(text: string): CanvasStyle {

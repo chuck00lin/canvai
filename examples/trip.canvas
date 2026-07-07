@@ -1,0 +1,88 @@
+{
+	"nodes": [
+		{
+			"id": "3bccce8495c66942",
+			"type": "text",
+			"text": "**5 days in Japan** 🗾\n\nFirst trip. Love food, temples, a bit of hiking. Pace: relaxed.",
+			"x": 0,
+			"y": 0,
+			"width": 300,
+			"height": 140,
+			"color": "6"
+		},
+		{
+			"id": "2609a77039d802b6",
+			"type": "text",
+			"text": "**Day 1–2 · Tokyo**\nTsukiji, Shibuya, teamLab. Day trip to Kamakura?",
+			"x": -360,
+			"y": 240,
+			"width": 260,
+			"height": 120
+		},
+		{
+			"id": "bcbac786607181a4",
+			"type": "text",
+			"text": "**Day 3 · Hakone**\nOnsen + Mt Fuji views. Ryokan overnight.",
+			"x": -60,
+			"y": 300,
+			"width": 260,
+			"height": 120
+		},
+		{
+			"id": "e350206be3ed7068",
+			"type": "text",
+			"text": "**Day 4–5 · Kyoto**\nFushimi Inari at dawn, Arashiyama, kaiseki dinner.",
+			"x": 280,
+			"y": 240,
+			"width": 260,
+			"height": 120
+		},
+		{
+			"id": "d9f165a7486ad038",
+			"type": "text",
+			"text": "🤖 **A few tweaks**\n\n- Kamakura fits **between** Tokyo & Hakone — do it Day 2 afternoon, save a backtrack\n- Fushimi Inari at dawn = crowd-free ✔ good call\n- Day 5 is tight — drop Arashiyama **or** kaiseki, not both\n- Book the ryokan now; Hakone fills up\n\nWant me to lay out a time-boxed Day 3?",
+			"x": 20,
+			"y": 470,
+			"width": 360,
+			"height": 240,
+			"color": "5"
+		},
+		{
+			"id": "0b30bc1559141b65",
+			"type": "text",
+			"text": "**Open**\n- JR Pass worth it?\n- vegetarian kaiseki options?",
+			"x": 430,
+			"y": 470,
+			"width": 240,
+			"height": 150,
+			"color": "2"
+		}
+	],
+	"edges": [
+		{
+			"id": "a119cab4c8d43d1d",
+			"fromNode": "3bccce8495c66942",
+			"toNode": "2609a77039d802b6"
+		},
+		{
+			"id": "09c307a79be51f89",
+			"fromNode": "3bccce8495c66942",
+			"toNode": "bcbac786607181a4"
+		},
+		{
+			"id": "0160f4c077557cf5",
+			"fromNode": "3bccce8495c66942",
+			"toNode": "e350206be3ed7068"
+		},
+		{
+			"id": "cf99d435eb376a73",
+			"fromNode": "bcbac786607181a4",
+			"toNode": "d9f165a7486ad038"
+		},
+		{
+			"id": "431b628c138dab01",
+			"fromNode": "d9f165a7486ad038",
+			"toNode": "0b30bc1559141b65"
+		}
+	]
+}

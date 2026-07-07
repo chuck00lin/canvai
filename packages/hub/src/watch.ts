@@ -38,15 +38,15 @@ export function watchRoot(root: string, onSignal: (signal: WatchSignal) => void)
     const rel = filename.split(path.sep).join('/')
     const segments = rel.split('/')
     const base = segments.at(-1) ?? ''
-    if (rel === '.pairsketch/state.json') {
+    if (rel === '.canvai/state.json') {
       schedule('state', { type: 'state' })
       return
     }
-    if (rel === '.pairsketch/chat.jsonl') {
+    if (rel === '.canvai/chat.jsonl') {
       schedule('chat', { type: 'chat' })
       return
     }
-    // ignore dotted dirs (.git, .obsidian, .pairsketch) and our tmp files
+    // ignore dotted dirs (.git, .obsidian, .canvai) and our tmp files
     if (segments.some((s) => s.startsWith('.')) || segments.includes('node_modules')) return
     if (!base.endsWith('.canvas')) return
     schedule(rel, { type: 'canvas', board: rel })

@@ -3,7 +3,7 @@
  *
  * Deliberately loose: every record carries an index signature so that fields
  * we don't know about (e.g. Advanced Canvas styling) survive a round-trip
- * untouched. That preservation is a core invariant of pairsketch (design D3).
+ * untouched. That preservation is a core invariant of canvai (design D3).
  */
 
 export type Side = 'top' | 'right' | 'bottom' | 'left'
@@ -29,7 +29,7 @@ export interface CanvasNode {
   label?: string
   background?: string
   backgroundStyle?: string
-  /** pairsketch extension: absent/true = card participates in the agent
+  /** canvai extension: absent/true = card participates in the agent
    *  discussion; false = opted out (still on the board — never hidden,
    *  hiding reads as deletion on the agent side) */
   discuss?: boolean

@@ -1,0 +1,103 @@
+{
+	"nodes": [
+		{
+			"id": "f2fd616cccd98f6b",
+			"type": "text",
+			"text": "**Auth rework — decide this sprint**\n\nOur session store is becoming a bottleneck. Move to stateless tokens, or double down on sessions?",
+			"x": 0,
+			"y": 0,
+			"width": 360,
+			"height": 150,
+			"color": "6"
+		},
+		{
+			"id": "89a886104e1ce477",
+			"type": "text",
+			"text": "**A · Server sessions**\n\nKeep sessions, add Redis. Familiar, instantly revocable.",
+			"x": -60,
+			"y": 260,
+			"width": 300,
+			"height": 120
+		},
+		{
+			"id": "1b5b93cb441b84c1",
+			"type": "text",
+			"text": "**B · Stateless JWT**\n\nSelf-contained tokens, no store. Scales flat across services.",
+			"x": 430,
+			"y": 260,
+			"width": 300,
+			"height": 120
+		},
+		{
+			"id": "7ccf7629b3418ae7",
+			"type": "text",
+			"text": "🤖 **On sessions**\n\n- ✔ instant revoke, simple model\n- ✔ battle-tested\n- ✖ Redis = one more service\n- ✖ shared state bottleneck at scale\n\n_Best if revocation matters & < 1M sessions._",
+			"x": -60,
+			"y": 450,
+			"width": 320,
+			"height": 230,
+			"color": "5"
+		},
+		{
+			"id": "4f41d1a12327d42e",
+			"type": "text",
+			"text": "🤖 **On JWT**\n\n- ✔ no store, scales horizontally\n- ✔ great across many services\n- ✖ revocation is hard (denylist anyway)\n- ✖ token bloat + key rotation\n\n_Best if read-heavy & short TTL is OK._",
+			"x": 430,
+			"y": 450,
+			"width": 320,
+			"height": 230,
+			"color": "5"
+		},
+		{
+			"id": "f52ae664f87107cd",
+			"type": "text",
+			"text": "🤖 **My read**\n\nGo **sessions + Redis** now — you need revocation and real scale is years out.\n\nRevisit JWT when you split into services. Reversible; start simple.",
+			"x": 150,
+			"y": 740,
+			"width": 360,
+			"height": 190,
+			"color": "4"
+		},
+		{
+			"id": "799d692c4ed82df7",
+			"type": "text",
+			"text": "**Request path**\n\n```mermaid\nflowchart LR\n  U[User] --> L[Login]\n  L --> D{sessions or jwt}\n  D -->|session| R[(Redis)]\n  D -->|jwt| S[signed token]\n  R --> API\n  S --> API[API]\n```",
+			"x": 830,
+			"y": 240,
+			"width": 380,
+			"height": 320
+		}
+	],
+	"edges": [
+		{
+			"id": "95d8e939b789accd",
+			"fromNode": "f2fd616cccd98f6b",
+			"toNode": "89a886104e1ce477"
+		},
+		{
+			"id": "1d4bc416a71ad78e",
+			"fromNode": "f2fd616cccd98f6b",
+			"toNode": "1b5b93cb441b84c1"
+		},
+		{
+			"id": "54e3e280c13c0639",
+			"fromNode": "89a886104e1ce477",
+			"toNode": "7ccf7629b3418ae7"
+		},
+		{
+			"id": "2191ec4ea113145f",
+			"fromNode": "1b5b93cb441b84c1",
+			"toNode": "4f41d1a12327d42e"
+		},
+		{
+			"id": "82076aaf73e33cce",
+			"fromNode": "7ccf7629b3418ae7",
+			"toNode": "f52ae664f87107cd"
+		},
+		{
+			"id": "fbed474458d85012",
+			"fromNode": "4f41d1a12327d42e",
+			"toNode": "f52ae664f87107cd"
+		}
+	]
+}

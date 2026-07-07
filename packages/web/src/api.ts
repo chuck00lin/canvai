@@ -1,6 +1,6 @@
 /**
- * REST + WebSocket client for the pairsketch hub. Types mirror
- * @pairsketch/canvas-kit (which cannot be imported here — it pulls node
+ * REST + WebSocket client for the canvai hub. Types mirror
+ * @canvai/canvas-kit (which cannot be imported here — it pulls node
  * builtins); keep them in sync.
  */
 

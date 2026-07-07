@@ -2,8 +2,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 /**
- * Hub-local state, kept out of the boards themselves: `.pairsketch/state.json`
- * under the root. Recommend gitignoring `.pairsketch/` — it is per-checkout
+ * Hub-local state, kept out of the boards themselves: `.canvai/state.json`
+ * under the root. Recommend gitignoring `.canvai/` — it is per-checkout
  * working state (active board, pinned nodes), not content.
  *
  * This file is also the IPC between hub processes: the MCP server (spawned by
@@ -20,7 +20,7 @@ interface HubState {
 }
 
 export function stateFile(root: string): string {
-  return path.join(root, '.pairsketch', 'state.json')
+  return path.join(root, '.canvai', 'state.json')
 }
 
 async function readState(root: string): Promise<HubState> {
