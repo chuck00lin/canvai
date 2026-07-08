@@ -365,6 +365,51 @@ export function setRailPitch(data: CanvasData, rail: RailInfo, pitch: number): v
   writeCache(rail)
 }
 
+/**
+ * Resize gesture → slot count. The dragged box gives the new length along the
+ * rail's axis (and lets the start slide); slot count follows length ÷ pitch,
+ * clamped so occupied slots never fall off. Geometry is then re-laid on the
+ * standard grid: joints repositioned, shaft rebuilt, cards re-seated.
+ */
+export function resizeRail(
+  data: CanvasData,
+  rail: RailInfo,
+  box: { x: number; y: number; width: number; height: number },
+): number {
+  const length = rail.orient === 'h' ? box.width : box.height
+  const usable = length - 2 * GROUP_PAD - JOINT_SIZE
+  const occupied = [...rail.cards.keys()]
+  const minSlots = occupied.length > 0 ? Math.max(...occupied) + 1 : 2
+  const slots = Math.max(2, minSlots, Math.round(usable / rail.pitch) + 1)
+
+  const first = rail.joints[0]!
+  if (rail.orient === 'h') first.x = Math.round(box.x + GROUP_PAD)
+  else first.y = Math.round(box.y + GROUP_PAD)
+
+  // drop the old shaft; trim or grow the joint chain; rebuild on the grid
+  const jointIds = new Set(rail.joints.map((j) => j.id))
+  data.edges = edges(data).filter((e) => !(jointIds.has(e.fromNode) && jointIds.has(e.toNode)))
+  while (rail.joints.length > slots) {
+    const gone = rail.joints.pop()!
+    data.nodes = nodes(data).filter((n) => n.id !== gone.id)
+    data.edges = edges(data).filter((e) => e.fromNode !== gone.id && e.toNode !== gone.id)
+  }
+  rail.joints.forEach((joint, slot) => Object.assign(joint, jointPos(rail, slot)))
+  while (rail.joints.length < slots) {
+    const pos = jointPos(rail, rail.joints.length)
+    const joint: CanvasNode = { id: genId(), type: 'text', text: '', ...pos, width: JOINT_SIZE, height: JOINT_SIZE }
+    data.nodes!.push(joint)
+    rail.joints.push(joint)
+  }
+  for (let i = 1; i < rail.joints.length; i++) {
+    data.edges!.push(shaftEdge(rail, rail.joints[i - 1]!, rail.joints[i]!, i === rail.joints.length - 1))
+  }
+  for (const [slot, cs] of rail.cards) for (const card of cs) placeCard(rail, slot, card)
+  fitGroup(rail)
+  writeCache(rail)
+  return slots
+}
+
 /** Rail geometry moved as a unit (rail group `move` takes cards along). */
 export function shiftRailCards(data: CanvasData, rail: RailInfo, dx: number, dy: number, alreadyMoved: Set<string>): void {
   for (const cs of rail.cards.values()) {

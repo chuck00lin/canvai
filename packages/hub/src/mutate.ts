@@ -9,6 +9,7 @@ import {
   railInfo,
   railJointIds,
   reorderCard,
+  resizeRail,
   type CanvasData,
   type CanvasNode,
   type RailOrient,
@@ -36,6 +37,7 @@ export type Mutation =
   | { kind: 'add_rail'; orient: RailOrient; x: number; y: number; slots: number; pitch?: number; label?: string }
   | { kind: 'rail_attach'; rail: string; card: string; slot: number }
   | { kind: 'rail_detach'; rail: string; card: string }
+  | { kind: 'rail_resize'; rail: string; x: number; y: number; width: number; height: number }
 
 export interface MutateOutcome {
   /** nodes whose x/y a human changed — these get pinned */
@@ -201,6 +203,13 @@ export function applyMutations(data: CanvasData, mutations: Mutation[]): MutateO
         if (!isRailGroup(group)) throw new Error(`node ${m.rail} is not a rail`)
         detachCard(data, railInfo(data, group), mustGet(m.card))
         summary.push(`rail ${group.id} released ${m.card}`)
+        break
+      }
+      case 'rail_resize': {
+        const group = mustGet(m.rail)
+        if (!isRailGroup(group)) throw new Error(`node ${m.rail} is not a rail`)
+        const slots = resizeRail(data, railInfo(data, group), { x: m.x, y: m.y, width: m.width, height: m.height })
+        summary.push(`rail ${group.id} -> ${slots} slots`)
         break
       }
       default:

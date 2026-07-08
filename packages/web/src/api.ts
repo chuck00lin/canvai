@@ -59,6 +59,7 @@ export type Mutation =
   | { kind: 'add_rail'; orient: 'h' | 'v'; x: number; y: number; slots: number; pitch?: number; label?: string }
   | { kind: 'rail_attach'; rail: string; card: string; slot: number }
   | { kind: 'rail_detach'; rail: string; card: string }
+  | { kind: 'rail_resize'; rail: string; x: number; y: number; width: number; height: number }
 
 export interface ChatMessage {
   id: string

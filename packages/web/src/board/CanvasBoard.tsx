@@ -429,6 +429,22 @@ function BoardInner({ path, changeSignal }: Props) {
           x = abs.x
           y = abs.y
         }
+        // resizing a rail is a slot-count gesture, not a box edit — the hub
+        // re-lays the grid from the new length (CEO 2026-07-08: 要可以調長度)
+        if (node.type === 'railGroup') {
+          const abs = absolutePosition(node, map)
+          mutate([
+            {
+              kind: 'rail_resize',
+              rail: id,
+              x: x ?? abs.x,
+              y: y ?? abs.y,
+              width: geometry.width ?? node.data.node.width,
+              height: geometry.height ?? node.data.node.height,
+            },
+          ])
+          return
+        }
         mutate([{ kind: 'set_geometry', id, x, y, width: geometry.width, height: geometry.height }])
       },
       notifyEditing: (active) => {
@@ -807,11 +823,6 @@ function BoardInner({ path, changeSignal }: Props) {
     selection.nodes.length === 1 && selection.edges.length === 0
       ? nodes.find((n) => n.id === selection.nodes[0])
       : undefined
-  // where the selected card is attached, if anywhere — powers the toolbar detach
-  const selAttached = useMemo(
-    () => (selNode ? buildRailLookup(nodes, edges).cardRail.get(selNode.id) : undefined),
-    [nodes, edges, selNode],
-  )
   const selEdge =
     selection.edges.length === 1 && selection.nodes.length === 0
       ? edges.find((e) => e.id === selection.edges[0])
@@ -948,14 +959,6 @@ function BoardInner({ path, changeSignal }: Props) {
               <button onClick={() => setColorMode(true)} aria-label="card color">
                 🎨
               </button>
-              {selAttached && (
-                <button
-                  onClick={() => mutate([{ kind: 'rail_detach', rail: selAttached.railId, card: selNode.id }])}
-                  aria-label="detach this card from its rail"
-                >
-                  ⛓️ {t('toolbar.detach')}
-                </button>
-              )}
               <button
                 onClick={() =>
                   mutate([{ kind: 'set_discuss', id: selNode.id, discuss: selNode.data.node.discuss === false }])

@@ -493,10 +493,20 @@ function RailJointNode({ data }: NodeProps<PSFlowNode>) {
 /**
  * The rail body. Label is edited WITHOUT the RAIL_MARK prefix and the marker
  * is re-attached on save — losing it would demote the rail to a plain group.
- * No resizer yet: length ↔ slot count sync is slice 3.
+ * Resizing is a slot-count gesture: commitGeometry routes rail groups to
+ * rail_resize and the hub re-lays the grid from the new length.
  */
 function RailGroupNode({ id, data, selected }: NodeProps<PSFlowNode>) {
-  const { commitLabel, notifyEditing } = useContext(BoardActions)
+  const { commitLabel, commitGeometry, notifyEditing } = useContext(BoardActions)
+  // MUST be referentially stable: React Flow's ResizeControl lists
+  // onResizeEnd in an effect that destroys/rebinds the resizer on change —
+  // an inline arrow re-created per render killed in-flight TOUCH resize
+  // gestures after their first frame (mouse survived: window listeners)
+  const onResizeEnd = useCallback(
+    (_: unknown, params: { x: number; y: number; width: number; height: number }) =>
+      commitGeometry(id, params),
+    [commitGeometry, id],
+  )
   const [editing, setEditingState] = useState(false)
   const [draft, setDraft] = useState('')
   const node = data.node
@@ -515,6 +525,14 @@ function RailGroupNode({ id, data, selected }: NodeProps<PSFlowNode>) {
 
   return (
     <div className={`ps-rail${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)} {...press}>
+      <NodeResizer
+        isVisible={!!selected}
+        handleClassName="nopan"
+        lineClassName="nopan"
+        minWidth={70}
+        minHeight={70}
+        onResizeEnd={onResizeEnd}
+      />
       {/* non-connectable: dragging a line from the rail BODY looks like a slot
           attach but isn't — edges belong on the dots. Handles stay in the DOM
           so agent-made group edges still have anchors to render from. */}
