@@ -210,6 +210,9 @@ export function toFlow(data: CanvasData, pinned: ReadonlySet<string>): { nodes: 
       sourceHandle: sourceHandle ?? 'right',
       targetHandle: targetHandle ?? 'left',
       ...(e.label ? { label: e.label } : {}),
+      // rail plumbing draws as straight segments: a bezier S-curve into a
+      // point-sized joint reads as noise
+      ...(shaft || attach ? { type: 'straight' } : {}),
       // spec defaults: arrowhead at the target unless toEnd says otherwise
       ...(ends.toEnd === 'none' ? {} : { markerEnd: { type: MarkerType.ArrowClosed, color: stroke } }),
       ...(ends.fromEnd === 'arrow' ? { markerStart: { type: MarkerType.ArrowClosed, color: stroke } } : {}),
