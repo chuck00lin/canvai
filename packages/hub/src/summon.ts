@@ -89,6 +89,11 @@ async function buildPrompt(root: string, note?: string): Promise<string> {
     '- reply with post_chat for prose, apply_ops for anything structural/spatial;',
     '- keep it to one focused turn: respond to what changed, then stop.',
     'If MCP tools are unavailable, read .canvai/events.jsonl and the .canvas files directly, and reply by printing text (it will be relayed to the chat panel).',
+    // 2026-07-08: a summoned agent reported a commit hash + GitHub push that
+    // never existed. Ship claims must carry evidence or not be made at all.
+    'Honesty guardrails (hard rules):',
+    '- NEVER claim you committed, pushed, deployed, or fixed code unless the proving command output (e.g. git log/push) appeared in THIS turn — and quote that evidence in your reply;',
+    '- if you only analyzed or proposed something, say exactly that; reporting hypothetical work as shipped is a critical failure.',
     "Respond in the human's language.",
   ]
     .filter((line) => line !== '')
