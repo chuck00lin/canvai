@@ -3,6 +3,22 @@ import { nodes, edges } from './types.ts'
 import { genId, resolveNodeId } from './ids.ts'
 import { rectOf, overlaps, contains, bbox, type Rect } from './geometry.ts'
 import { smallestContainingGroup } from './projection.ts'
+import {
+  attachCard,
+  createRail,
+  defaultPitch,
+  detachCard,
+  extendRail,
+  isRailGroup,
+  railInfo,
+  railLabel,
+  reorderCard,
+  setRailPitch,
+  shiftRailCards,
+  JOINT_SIZE,
+  type RailAttach,
+  type RailOrient,
+} from './rail.ts'
 
 /**
  * Semantic operations — the only write path agents get. Nothing here takes
@@ -13,6 +29,8 @@ import { smallestContainingGroup } from './projection.ts'
 export const GAP = 60
 const STACK_GAP = 24
 const COLLISION_MARGIN = 12
+/** vertical/horizontal room a rail reserves per attach side for its cards */
+const CARD_ZONE = 220
 
 export type Dir = 'right' | 'below' | 'left' | 'above'
 
@@ -68,6 +86,8 @@ export interface ConnectOp {
   to: string
   label?: string
   color?: string
+  /** arrowhead placement; default "to" (JSON Canvas default) */
+  arrows?: 'to' | 'none' | 'from' | 'both'
 }
 
 export interface DisconnectOp {
@@ -86,7 +106,90 @@ export interface MoveOp {
   dir?: Dir
 }
 
-export type Op = AddNodeOp | AddGroupOp | UpdateNodeOp | DeleteNodeOp | ConnectOp | DisconnectOp | MoveOp
+export interface AddRailOp {
+  op: 'add_rail'
+  /** default "h" */
+  orient?: RailOrient
+  /** default 5 */
+  slots?: number
+  /** default 160 for attach "both", 340 for a single side */
+  pitch?: number
+  /** which side(s) of the shaft cards attach to; default "both" (alternating) */
+  attach?: RailAttach
+  label?: string
+  anchor?: string
+  dir?: Dir
+  ref?: string
+}
+
+export interface AttachToRailOp {
+  op: 'attach_to_rail'
+  rail: string
+  /** attach this existing card... */
+  card?: string
+  /** ...or create a new text card and attach it */
+  text?: string
+  color?: string
+  width?: number
+  height?: number
+  /** 1-based; an occupied slot means "insert here" (later cards shift toward the tail); omit for first free slot */
+  slot?: number
+  ref?: string
+}
+
+export interface RailDetachOp {
+  op: 'rail_detach'
+  rail: string
+  card: string
+}
+
+export interface RailReorderOp {
+  op: 'rail_reorder'
+  rail: string
+  card: string
+  /** 1-based destination (insert semantics) */
+  slot: number
+}
+
+export interface ExtendRailOp {
+  op: 'extend_rail'
+  rail: string
+  /** default 1 */
+  add?: number
+}
+
+export interface SetRailOp {
+  op: 'set_rail'
+  rail: string
+  pitch: number
+}
+
+export interface PinOp {
+  op: 'pin'
+  id: string
+}
+
+export interface UnpinOp {
+  op: 'unpin'
+  id: string
+}
+
+export type Op =
+  | AddNodeOp
+  | AddGroupOp
+  | UpdateNodeOp
+  | DeleteNodeOp
+  | ConnectOp
+  | DisconnectOp
+  | MoveOp
+  | AddRailOp
+  | AttachToRailOp
+  | RailDetachOp
+  | RailReorderOp
+  | ExtendRailOp
+  | SetRailOp
+  | PinOp
+  | UnpinOp
 
 export interface OpsResult {
   summary: string[]
@@ -94,6 +197,9 @@ export interface OpsResult {
   created: Record<string, string>
   /** node ids removed by delete_node — callers should prune pins etc. */
   deleted: string[]
+  /** node ids pinned/unpinned by pin/unpin ops — callers persist these */
+  pins: string[]
+  unpins: string[]
 }
 
 /** Applies ops in order, mutating `data`. Throws on the first invalid op. */
@@ -103,6 +209,8 @@ export function applyOps(data: CanvasData, ops: Op[]): OpsResult {
   const created: Record<string, string> = {}
   const summary: string[] = []
   const deleted: string[] = []
+  const pins: string[] = []
+  const unpins: string[] = []
   let counter = 0
 
   const resolve = (ref: string): string => {
@@ -202,12 +310,15 @@ export function applyOps(data: CanvasData, ops: Op[]): OpsResult {
         const from = mustGet(data, resolve(op.from))
         const to = mustGet(data, resolve(op.to))
         const sides = autoSides(rectOf(from), rectOf(to))
+        const arrows = op.arrows ?? 'to'
         const edge: CanvasEdge = {
           id: genId(),
           fromNode: from.id,
           fromSide: sides.fromSide,
           toNode: to.id,
           toSide: sides.toSide,
+          ...(arrows === 'none' || arrows === 'from' ? { toEnd: 'none' as const } : {}),
+          ...(arrows === 'from' || arrows === 'both' ? { fromEnd: 'arrow' as const } : {}),
           ...(op.color ? { color: op.color } : {}),
           ...(op.label ? { label: op.label } : {}),
         }
@@ -237,15 +348,103 @@ export function applyOps(data: CanvasData, ops: Op[]): OpsResult {
           dx = op.dx ?? 0
           dy = op.dy ?? 0
         }
-        shiftWithMembers(data, node, dx, dy)
+        const moved = shiftWithMembers(data, node, dx, dy)
+        if (isRailGroup(node)) shiftRailCards(data, railInfo(data, node), dx, dy, moved)
         summary.push(`moved ${node.id} by (${dx}, ${dy})`)
+        break
+      }
+      case 'add_rail': {
+        const attach = op.attach ?? 'both'
+        const orient = op.orient ?? 'h'
+        const slots = op.slots ?? 5
+        const pitch = op.pitch ?? defaultPitch(attach)
+        // footprint reserves the card zones so later attachments don't land on existing nodes
+        const zone = CARD_ZONE
+        const shaftW = orient === 'h' ? (slots - 1) * pitch + JOINT_SIZE : JOINT_SIZE
+        const shaftH = orient === 'v' ? (slots - 1) * pitch + JOINT_SIZE : JOINT_SIZE
+        const before = attach === 'both' || attach === 'above' || attach === 'left'
+        const after = attach === 'both' || attach === 'below' || attach === 'right'
+        const size =
+          orient === 'h'
+            ? { width: shaftW, height: shaftH + (before ? zone : 0) + (after ? zone : 0) }
+            : { width: shaftW + (before ? zone : 0) + (after ? zone : 0), height: shaftH }
+        const anchorRect = op.anchor ? rectOf(mustGet(data, resolve(op.anchor))) : undefined
+        const pos = place(data, size, { anchorRect, dir: op.dir ?? 'below' })
+        const origin =
+          orient === 'h' ? { x: pos.x, y: pos.y + (before ? zone : 0) } : { x: pos.x + (before ? zone : 0), y: pos.y }
+        const rail = createRail(data, { orient, slots, pitch, attach, label: op.label ?? '', origin })
+        remember(rail.group.id, op.ref)
+        summary.push(`added rail ${rail.group.id} "${railLabel(rail.group)}" (${orient}, ${slots} slots)`)
+        break
+      }
+      case 'attach_to_rail': {
+        const rail = mustBeRail(data, resolve(op.rail))
+        if ((op.card === undefined) === (op.text === undefined))
+          throw new Error('attach_to_rail: pass exactly one of "card" (existing) or "text" (new card)')
+        let card: CanvasNode
+        if (op.card !== undefined) {
+          card = mustGet(data, resolve(op.card))
+          if (card.type === 'group') throw new Error('attach_to_rail: groups cannot attach to a rail')
+        } else {
+          const size = {
+            width: op.width ?? defaultSize('text', op.text).width,
+            height: op.height ?? defaultSize('text', op.text).height,
+          }
+          card = { id: genId(), type: 'text', text: op.text!, x: 0, y: 0, ...size, ...(op.color ? { color: op.color } : {}) }
+          data.nodes.push(card)
+          remember(card.id, op.ref)
+        }
+        if (op.slot !== undefined && op.slot < 1) throw new Error('attach_to_rail: "slot" is 1-based')
+        const slot = attachCard(data, rail, card, op.slot === undefined ? undefined : op.slot - 1)
+        summary.push(`attached ${card.id} to rail ${rail.group.id} slot ${slot + 1}`)
+        break
+      }
+      case 'rail_detach': {
+        const rail = mustBeRail(data, resolve(op.rail))
+        const card = mustGet(data, resolve(op.card))
+        detachCard(data, rail, card)
+        summary.push(`detached ${card.id} from rail ${rail.group.id}`)
+        break
+      }
+      case 'rail_reorder': {
+        const rail = mustBeRail(data, resolve(op.rail))
+        const card = mustGet(data, resolve(op.card))
+        if (op.slot < 1) throw new Error('rail_reorder: "slot" is 1-based')
+        reorderCard(data, rail, card, op.slot - 1)
+        summary.push(`moved ${card.id} to rail ${rail.group.id} slot ${op.slot}`)
+        break
+      }
+      case 'extend_rail': {
+        const rail = mustBeRail(data, resolve(op.rail))
+        const add = op.add ?? 1
+        extendRail(data, rail, add)
+        summary.push(`extended rail ${rail.group.id} to ${rail.joints.length} slots`)
+        break
+      }
+      case 'set_rail': {
+        const rail = mustBeRail(data, resolve(op.rail))
+        setRailPitch(data, rail, op.pitch)
+        summary.push(`rail ${rail.group.id} pitch -> ${op.pitch}`)
+        break
+      }
+      case 'pin': {
+        const id = resolve(op.id)
+        mustGet(data, id)
+        pins.push(id)
+        summary.push(`pinned ${id}`)
+        break
+      }
+      case 'unpin': {
+        const id = resolve(op.id)
+        unpins.push(id)
+        summary.push(`unpinned ${id}`)
         break
       }
       default:
         throw new Error(`unknown op: ${JSON.stringify(op satisfies never)}`)
     }
   }
-  return { summary, created, deleted }
+  return { summary, created, deleted, pins, unpins }
 }
 
 function mustGet(data: CanvasData, id: string): CanvasNode {
@@ -258,6 +457,12 @@ function mustBeGroup(data: CanvasData, id: string): CanvasNode {
   const node = mustGet(data, id)
   if (node.type !== 'group') throw new Error(`node ${id} is not a group`)
   return node
+}
+
+function mustBeRail(data: CanvasData, id: string) {
+  const node = mustGet(data, id)
+  if (!isRailGroup(node)) throw new Error(`node ${id} is not a rail (add one with add_rail)`)
+  return railInfo(data, node)
 }
 
 function defaultSize(type: string, text?: string): { width: number; height: number } {
@@ -332,8 +537,8 @@ function expandGroupToFit(group: CanvasNode, inner: Rect): void {
   group.height = bottom - group.y
 }
 
-/** Moving a group takes its geometric members along, like Obsidian does. */
-function shiftWithMembers(data: CanvasData, node: CanvasNode, dx: number, dy: number): void {
+/** Moving a group takes its geometric members along, like Obsidian does. Returns the moved ids. */
+function shiftWithMembers(data: CanvasData, node: CanvasNode, dx: number, dy: number): Set<string> {
   const targets = new Set<string>([node.id])
   if (node.type === 'group') {
     const g = rectOf(node)
@@ -347,6 +552,7 @@ function shiftWithMembers(data: CanvasData, node: CanvasNode, dx: number, dy: nu
       n.y += dy
     }
   }
+  return targets
 }
 
 function autoSides(a: Rect, b: Rect): { fromSide: Side; toSide: Side } {

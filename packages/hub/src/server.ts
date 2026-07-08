@@ -3,12 +3,13 @@ import { z } from 'zod'
 import {
   applyOps,
   autoLayout,
+  railMemberIds,
   structuralProjection,
   type CanvasData,
   type Op,
 } from '@canvai/canvas-kit'
 import { createBoard, listBoards, readBoard, readBoardRaw, writeBoard } from './boards.ts'
-import { getActiveBoard, getPinned, removePinned, setActiveBoard } from './state.ts'
+import { addPinned, getActiveBoard, getPinned, removePinned, setActiveBoard } from './state.ts'
 import { appendEvent, readEventsSince, type HubEvent } from './events.ts'
 import { appendChat, readChatSince } from './chat.ts'
 
@@ -54,6 +55,7 @@ const opSchema = z.discriminatedUnion('op', [
     to: z.string(),
     label: z.string().optional(),
     color: z.string().optional(),
+    arrows: z.enum(['to', 'none', 'from', 'both']).optional().describe('arrowhead placement, default "to"'),
   }),
   z.object({ op: z.literal('disconnect'), from: z.string(), to: z.string() }),
   z.object({
@@ -64,6 +66,45 @@ const opSchema = z.discriminatedUnion('op', [
     anchor: z.string().optional(),
     dir: dirEnum.optional(),
   }),
+  z.object({
+    op: z.literal('add_rail'),
+    orient: z.enum(['h', 'v']).optional().describe('default h'),
+    slots: z.number().optional().describe('default 5; rails also grow on demand when attach fills them'),
+    pitch: z.number().optional().describe('slot spacing in px; default 160 (attach "both") / 340 (single side)'),
+    attach: z
+      .enum(['both', 'above', 'below', 'left', 'right'])
+      .optional()
+      .describe('which side(s) cards attach on; "both" alternates fishbone-style (default)'),
+    label: z.string().optional(),
+    anchor: z.string().optional().describe('place near this node (id/prefix or "$ref")'),
+    dir: dirEnum.optional().describe('side of the anchor, default below'),
+    ref: z.string().optional(),
+  }),
+  z.object({
+    op: z.literal('attach_to_rail'),
+    rail: z.string(),
+    card: z.string().optional().describe('attach this existing card…'),
+    text: z.string().optional().describe('…or create a new text card and attach it'),
+    color: z.string().optional(),
+    width: z.number().optional(),
+    height: z.number().optional(),
+    slot: z
+      .number()
+      .optional()
+      .describe('1-based; occupied slot = insert here (later cards shift); omit for first free slot'),
+    ref: z.string().optional(),
+  }),
+  z.object({ op: z.literal('rail_detach'), rail: z.string(), card: z.string() }),
+  z.object({
+    op: z.literal('rail_reorder'),
+    rail: z.string(),
+    card: z.string(),
+    slot: z.number().describe('1-based destination (insert semantics)'),
+  }),
+  z.object({ op: z.literal('extend_rail'), rail: z.string(), add: z.number().optional().describe('default 1') }),
+  z.object({ op: z.literal('set_rail'), rail: z.string(), pitch: z.number().describe('re-projects joints and attached cards') }),
+  z.object({ op: z.literal('pin'), id: z.string().describe('auto_layout will not move this node') }),
+  z.object({ op: z.literal('unpin'), id: z.string() }),
 ])
 
 type ToolResult = { content: { type: 'text'; text: string }[]; isError?: boolean }
@@ -233,6 +274,9 @@ export function createHubServer(root: string): McpServer {
       description:
         'Edit a board with semantic ops (add_node/add_group/update_node/delete_node/connect/disconnect/move). ' +
         'Positions are computed for you — anchor new nodes to existing ones instead of thinking in pixels. ' +
+        'For anything sequence-shaped (timelines, fishbones, journeys) use rails: add_rail creates a horizontal or ' +
+        'vertical arrow with evenly spaced slots, attach_to_rail/rail_reorder/rail_detach manage cards on it as an ' +
+        'ordered list, and auto_layout never disturbs a rail. pin/unpin protect any other hand-arranged node. ' +
         'The batch is atomic: all ops apply or none do.',
       inputSchema: {
         board: z.string().optional().describe('defaults to the active board'),
@@ -247,6 +291,8 @@ export function createHubServer(root: string): McpServer {
         const result = applyOps(working, ops as Op[])
         await writeBoard(root, rel, working, style)
         if (result.deleted.length > 0) await removePinned(root, rel, result.deleted)
+        if (result.pins.length > 0) await addPinned(root, rel, result.pins)
+        if (result.unpins.length > 0) await removePinned(root, rel, result.unpins)
         await appendEvent(root, { origin: 'agent', kind: 'ops_applied', board: rel, detail: { summary: result.summary } })
         const created = Object.entries(result.created)
           .filter(([k]) => !/^\$\d+$/.test(k))
@@ -277,7 +323,8 @@ export function createHubServer(root: string): McpServer {
         const rel = await resolveBoard(board)
         const { data, style } = await readBoard(root, rel)
         const working = structuredClone(data) as CanvasData
-        const pinned = await getPinned(root, rel)
+        // rails are rigid by construction: their members join the pinned set for this pass
+        const pinned = new Set([...(await getPinned(root, rel)), ...railMemberIds(working)])
         await autoLayout(working, { direction, pinned })
         await writeBoard(root, rel, working, style)
         await appendEvent(root, { origin: 'agent', kind: 'layout', board: rel })

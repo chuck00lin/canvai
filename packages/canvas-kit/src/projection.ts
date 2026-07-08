@@ -2,6 +2,7 @@ import type { CanvasData, CanvasNode } from './types.ts'
 import { nodes, edges } from './types.ts'
 import { aliasMap } from './ids.ts'
 import { rectOf, contains, area } from './geometry.ts'
+import { findRails, railLabel } from './rail.ts'
 
 /**
  * The coordinate-free view agents read by default. Costs roughly a third of
@@ -18,13 +19,22 @@ const TEXT_PREVIEW = 90
 export function structuralProjection(data: CanvasData, boardName = 'canvas'): Projection {
   const ns = nodes(data)
   const es = edges(data)
-  const groups = ns.filter((n) => n.type === 'group')
-  const cards = ns.filter((n) => n.type !== 'group')
+  const rails = findRails(data)
+  const railGroupIds = new Set(rails.map((r) => r.group.id))
+  const jointIds = new Set(rails.flatMap((r) => r.joints.map((j) => j.id)))
+  const attachedIds = new Set(rails.flatMap((r) => [...r.cards.values()].flat().map((c) => c.id)))
+  const groups = ns.filter((n) => n.type === 'group' && !railGroupIds.has(n.id))
+  const cards = ns.filter((n) => n.type !== 'group' && !jointIds.has(n.id) && !attachedIds.has(n.id))
+  // shaft and attach edges are rail internals — the rails section carries that information
+  const visibleEdges = es.filter((e) => !jointIds.has(e.fromNode) && !jointIds.has(e.toNode))
   const alias = aliasMap(ns.map((n) => n.id))
   const a = (id: string) => alias.get(id) ?? id
 
   const lines: string[] = []
-  lines.push(`board: ${boardName} — ${cards.length} nodes, ${groups.length} groups, ${es.length} edges`)
+  const railCount = rails.length > 0 ? `, ${rails.length} rails` : ''
+  lines.push(
+    `board: ${boardName} — ${cards.length + attachedIds.size} nodes, ${groups.length} groups, ${visibleEdges.length} edges${railCount}`,
+  )
   lines.push('(ids in [brackets] are unique prefixes; use them directly in apply_ops)')
   if (ns.some((n) => n.discuss === false)) {
     lines.push(
@@ -32,10 +42,22 @@ export function structuralProjection(data: CanvasData, boardName = 'canvas'): Pr
     )
   }
 
+  if (rails.length > 0) {
+    lines.push('', 'rails: (ordered slots; attach/insert/reorder with rail ops, not coordinates)')
+    for (const r of rails) {
+      lines.push(`[${a(r.group.id)}] "${railLabel(r.group)}" (${r.orient}, ${r.joints.length} slots)`)
+      r.joints.forEach((_, slot) => {
+        const slotCards = r.cards.get(slot)
+        const entry = slotCards ? slotCards.map((c) => `[${a(c.id)}] ${describe(c)}`).join(' | ') : '(empty)'
+        lines.push(`  ${slot + 1}: ${entry}`)
+      })
+    }
+  }
+
   if (groups.length > 0) {
     lines.push('', 'groups:')
     for (const g of groups) {
-      const members = ns.filter((n) => n.id !== g.id && contains(rectOf(g), rectOf(n)))
+      const members = ns.filter((n) => n.id !== g.id && !jointIds.has(n.id) && contains(rectOf(g), rectOf(n)))
       lines.push(`[${a(g.id)}] "${g.label ?? ''}" — ${members.length} members`)
     }
   }
@@ -50,9 +72,9 @@ export function structuralProjection(data: CanvasData, boardName = 'canvas'): Pr
     }
   }
 
-  if (es.length > 0) {
+  if (visibleEdges.length > 0) {
     lines.push('', 'edges:')
-    for (const e of es) {
+    for (const e of visibleEdges) {
       const label = e.label ? ` "${e.label}"` : ''
       lines.push(`[${a(e.fromNode)}] -> [${a(e.toNode)}]${label}`)
     }
