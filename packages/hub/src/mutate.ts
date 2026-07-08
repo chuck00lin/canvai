@@ -1,4 +1,19 @@
-import { genId, nodes, edges, type CanvasData, type CanvasNode, type Side } from '@canvai/canvas-kit'
+import {
+  attachCard,
+  createRail,
+  detachCard,
+  genId,
+  isRailGroup,
+  nodes,
+  edges,
+  railInfo,
+  railJointIds,
+  reorderCard,
+  type CanvasData,
+  type CanvasNode,
+  type RailOrient,
+  type Side,
+} from '@canvai/canvas-kit'
 
 /**
  * The HUMAN write path, used by the web client. Unlike agent ops (semantic,
@@ -18,6 +33,9 @@ export type Mutation =
   | { kind: 'add_edge'; from: string; to: string; fromSide?: Side; toSide?: Side; label?: string }
   | { kind: 'delete_node'; id: string }
   | { kind: 'delete_edge'; id: string }
+  | { kind: 'add_rail'; orient: RailOrient; x: number; y: number; slots: number; pitch?: number; label?: string }
+  | { kind: 'rail_attach'; rail: string; card: string; slot: number }
+  | { kind: 'rail_detach'; rail: string; card: string }
 
 export interface MutateOutcome {
   /** nodes whose x/y a human changed — these get pinned */
@@ -126,11 +144,13 @@ export function applyMutations(data: CanvasData, mutations: Mutation[]): MutateO
         break
       }
       case 'delete_node': {
-        const id = mustGet(m.id).id
-        data.nodes = data.nodes.filter((n) => n.id !== id)
-        data.edges = data.edges.filter((e) => e.fromNode !== id && e.toNode !== id)
-        deletedIds.push(id)
-        summary.push(`deleted ${id}`)
+        const node = mustGet(m.id)
+        // deleting a rail takes its joints along — orphaned dots are junk
+        const drop = new Set([node.id, ...railJointIds(data, node)])
+        data.nodes = data.nodes.filter((n) => !drop.has(n.id))
+        data.edges = data.edges.filter((e) => !drop.has(e.fromNode) && !drop.has(e.toNode))
+        deletedIds.push(...drop)
+        summary.push(`deleted ${node.id}`)
         break
       }
       case 'delete_edge': {
@@ -138,6 +158,49 @@ export function applyMutations(data: CanvasData, mutations: Mutation[]): MutateO
         data.edges = data.edges.filter((e) => e.id !== m.id)
         if (data.edges.length === before) throw new Error(`unknown edge id: "${m.id}"`)
         summary.push(`deleted edge ${m.id}`)
+        break
+      }
+      case 'add_rail': {
+        // the human drew the stroke — origin is theirs; slot layout is ours
+        const rail = createRail(data, {
+          orient: m.orient,
+          slots: Math.max(2, Math.round(m.slots)),
+          pitch: m.pitch ?? 160,
+          attach: 'both',
+          label: m.label ?? '',
+          origin: { x: Math.round(m.x), y: Math.round(m.y) },
+        })
+        summary.push(`added rail ${rail.group.id}`)
+        break
+      }
+      case 'rail_attach': {
+        const group = mustGet(m.rail)
+        if (!isRailGroup(group)) throw new Error(`node ${m.rail} is not a rail`)
+        const card = mustGet(m.card)
+        if (card.type === 'group') throw new Error('groups cannot attach to a rail')
+        if (m.slot < 1) throw new Error('rail_attach: "slot" is 1-based')
+        const rail = railInfo(data, group)
+        const attachedHere = [...rail.cards.values()].some((cs) => cs.some((c) => c.id === card.id))
+        // dropped while attached elsewhere: release that rail first
+        if (!attachedHere) {
+          for (const g of nodes(data).filter((n) => isRailGroup(n) && n.id !== group.id)) {
+            const other = railInfo(data, g)
+            if ([...other.cards.values()].some((cs) => cs.some((c) => c.id === card.id))) {
+              detachCard(data, other, card)
+            }
+          }
+        }
+        // reorder covers the drop-on-own-slot case too: detach + re-attach re-seats the card
+        if (attachedHere) reorderCard(data, rail, card, m.slot - 1)
+        else attachCard(data, rail, card, m.slot - 1)
+        summary.push(`rail ${group.id} slot ${m.slot} ← ${card.id}`)
+        break
+      }
+      case 'rail_detach': {
+        const group = mustGet(m.rail)
+        if (!isRailGroup(group)) throw new Error(`node ${m.rail} is not a rail`)
+        detachCard(data, railInfo(data, group), mustGet(m.card))
+        summary.push(`rail ${group.id} released ${m.card}`)
         break
       }
       default:

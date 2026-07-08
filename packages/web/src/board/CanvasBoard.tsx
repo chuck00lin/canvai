@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 import {
   Background,
   BackgroundVariant,
@@ -15,7 +23,17 @@ import {
 } from '@xyflow/react'
 import { api, type Mutation } from '../api'
 import { BoardActions, EditRequest, type BoardActionsValue, type EditRequestValue } from './actions'
-import { absolutePosition, CANVAS_COLORS, colorOf, toFlow, type PSFlowNode } from './mapping'
+import {
+  absolutePosition,
+  buildRailLookup,
+  CANVAS_COLORS,
+  colorOf,
+  nearestSlot,
+  SNAP_OUT,
+  toFlow,
+  type PSFlowNode,
+  type RailLookup,
+} from './mapping'
 import { nodeTypes } from './nodes'
 import { useLongPress } from './useLongPress'
 import { COARSE_QUERY, useMediaQuery } from '../useMediaQuery'
@@ -47,6 +65,8 @@ function BoardInner({ path, changeSignal }: Props) {
   const pendingReload = useRef(false)
   const nodesRef = useRef<PSFlowNode[]>([])
   nodesRef.current = nodes
+  const edgesRef = useRef<FlowEdge[]>([])
+  edgesRef.current = edges
   const { screenToFlowPosition } = useReactFlow()
   // touch devices get a selection toolbar: double-click, drag-from-handle and
   // the Delete key have no natural touch equivalent
@@ -434,38 +454,117 @@ function BoardInner({ path, changeSignal }: Props) {
     dragStartPos.current = new Map([...map.values()].map((n) => [n.id, absolutePosition(n, map)]))
   }, [])
 
+  // live snap hint: while a card is dragged near a rail, its landing slot lights up
+  const [snapHint, setSnapHint] = useState<string | null>(null)
+  const railLookup = useCallback(
+    (): RailLookup => buildRailLookup(nodesRef.current, edgesRef.current),
+    [],
+  )
+  const onNodeDrag = useCallback(
+    (_event: unknown, node: FlowNode) => {
+      if (node.type !== 'text' && node.type !== 'file' && node.type !== 'link') return
+      const map = byId()
+      const current = map.get(node.id)
+      if (!current) return
+      const a = absolutePosition(current, map)
+      const hit = nearestSlot(railLookup(), a.x + current.data.node.width / 2, a.y + current.data.node.height / 2)
+      const hint = hit?.jointId ?? null
+      setSnapHint((previous) => (previous === hint ? previous : hint))
+    },
+    [railLookup],
+  )
+
   const onNodeDragStop = useCallback(
     (_event: unknown, _node: FlowNode, draggedNodes: FlowNode[]) => {
       dragging.current = false
+      setSnapHint(null)
       const map = byId()
+      const lookup = railLookup()
       const moves = new Map<string, { x: number; y: number }>()
+      const railChanges: Mutation[] = []
+      // cards a rail seats itself — committing their raw drop position would
+      // fight the snap
+      const skipGeometry = new Set<string>()
+      const movedEnough = (id: string, pos: { x: number; y: number }) => {
+        const start = dragStartPos.current.get(id)
+        return !start || Math.abs(start.x - pos.x) > 0.5 || Math.abs(start.y - pos.y) > 0.5
+      }
+
       for (const dragged of draggedNodes) {
         const current = map.get(dragged.id)
         if (!current) continue
-        moves.set(dragged.id, absolutePosition(current, map))
+        const now = absolutePosition(current, map)
+        moves.set(dragged.id, now)
         // moving a group moves its members' absolute positions too
-        if (current.type === 'group') {
+        if (current.type === 'group' || current.type === 'railGroup') {
           for (const child of map.values()) {
             if (child.parentId === current.id && !moves.has(child.id)) {
               moves.set(child.id, absolutePosition(child, map))
             }
           }
         }
+        // a moved rail carries its attached cards — they are edge-linked, not RF children
+        if (current.type === 'railGroup') {
+          const start = dragStartPos.current.get(current.id)
+          const ddx = start ? now.x - start.x : 0
+          const ddy = start ? now.y - start.y : 0
+          if (ddx !== 0 || ddy !== 0) {
+            for (const [cardId, at] of lookup.cardRail) {
+              if (at.railId !== current.id || moves.has(cardId)) continue
+              const cardStart = dragStartPos.current.get(cardId)
+              if (cardStart) moves.set(cardId, { x: cardStart.x + ddx, y: cardStart.y + ddy })
+            }
+          }
+        }
+        // rail snap: a card dropped on/near a shaft attaches to the nearest slot;
+        // an attached card dragged well clear of its joint detaches
+        if (
+          (current.type === 'text' || current.type === 'file' || current.type === 'link') &&
+          movedEnough(current.id, now)
+        ) {
+          const cx = now.x + current.data.node.width / 2
+          const cy = now.y + current.data.node.height / 2
+          const hit = nearestSlot(lookup, cx, cy)
+          const attachedAt = lookup.cardRail.get(current.id)
+          if (hit) {
+            railChanges.push({ kind: 'rail_attach', rail: hit.railId, card: current.id, slot: hit.slot + 1 })
+            skipGeometry.add(current.id)
+          } else if (attachedAt) {
+            const rail = lookup.rails.find((r) => r.id === attachedAt.railId)
+            const joint = rail?.joints[attachedAt.slot]
+            const dist = joint ? Math.hypot(cx - joint.cx, cy - joint.cy) : Infinity
+            if (dist > SNAP_OUT) {
+              railChanges.push({ kind: 'rail_detach', rail: attachedAt.railId, card: current.id })
+              // geometry commits: the card rests where it was dropped
+            } else {
+              // grey zone between snap-out and snap-in: stay attached, snap back
+              railChanges.push({
+                kind: 'rail_attach',
+                rail: attachedAt.railId,
+                card: current.id,
+                slot: attachedAt.slot + 1,
+              })
+              skipGeometry.add(current.id)
+            }
+          }
+        }
       }
-      const changed = [...moves.entries()].filter(([id, pos]) => {
-        const start = dragStartPos.current.get(id)
-        return !start || Math.abs(start.x - pos.x) > 0.5 || Math.abs(start.y - pos.y) > 0.5
-      })
-      mutate(changed.map(([id, pos]) => ({ kind: 'set_geometry', id, x: pos.x, y: pos.y })))
+      const changed = [...moves.entries()].filter(
+        ([id, pos]) => !skipGeometry.has(id) && movedEnough(id, pos),
+      )
+      mutate([
+        ...changed.map(([id, pos]) => ({ kind: 'set_geometry', id, x: pos.x, y: pos.y }) as Mutation),
+        ...railChanges,
+      ])
       if (pendingReload.current) {
         pendingReload.current = false
         // if we just committed moves, loading NOW would fetch pre-commit
         // state and visually snap the card back ("card jumped/disappeared") —
         // our own mutate broadcasts board_changed and refreshes with truth
-        if (changed.length === 0) void load()
+        if (changed.length === 0 && railChanges.length === 0) void load()
       }
     },
-    [mutate, load],
+    [mutate, load, railLookup],
   )
 
   const onConnect = useCallback(
@@ -625,15 +724,71 @@ function BoardInner({ path, changeSignal }: Props) {
     [],
   )
 
+  // rail draw tool: one stroke on the canvas becomes a rail — direction locks
+  // to whichever axis dominates, slot count follows the stroke length
+  // (length-driven; the agent side grows rails on demand instead)
+  const [railDraw, setRailDraw] = useState(false)
+  const [railPreview, setRailPreview] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
+  const railStroke = useRef<{ x: number; y: number; rect: DOMRect } | null>(null)
+  const RAIL_PITCH = 160
+  const lockEnd = (start: { x: number; y: number }, x: number, y: number) =>
+    Math.abs(x - start.x) >= Math.abs(y - start.y) ? { x, y: start.y } : { x: start.x, y }
+  const onRailPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId)
+    const rect = event.currentTarget.getBoundingClientRect()
+    railStroke.current = { x: event.clientX, y: event.clientY, rect }
+    setRailPreview({
+      x1: event.clientX - rect.left,
+      y1: event.clientY - rect.top,
+      x2: event.clientX - rect.left,
+      y2: event.clientY - rect.top,
+    })
+  }, [])
+  const onRailPointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const s = railStroke.current
+    if (!s) return
+    const end = lockEnd(s, event.clientX, event.clientY)
+    setRailPreview({ x1: s.x - s.rect.left, y1: s.y - s.rect.top, x2: end.x - s.rect.left, y2: end.y - s.rect.top })
+  }, [])
+  const onRailPointerUp = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const s = railStroke.current
+      railStroke.current = null
+      setRailPreview(null)
+      setRailDraw(false)
+      if (!s) return
+      const end = lockEnd(s, event.clientX, event.clientY)
+      const a = screenToFlowPosition({ x: s.x, y: s.y })
+      const b = screenToFlowPosition(end)
+      const horizontal = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y)
+      const length = Math.abs(horizontal ? b.x - a.x : b.y - a.y)
+      if (length < 40) return // a click, not a stroke
+      const slots = Math.max(2, Math.round(length / RAIL_PITCH) + 1)
+      // the stroke is the shaft line; origin is the first joint's top-left
+      const origin = horizontal
+        ? { x: Math.min(a.x, b.x) - 5, y: a.y - 5 }
+        : { x: a.x - 5, y: Math.min(a.y, b.y) - 5 }
+      mutate([
+        { kind: 'add_rail', orient: horizontal ? 'h' : 'v', x: Math.round(origin.x), y: Math.round(origin.y), slots },
+      ])
+    },
+    [mutate, screenToFlowPosition],
+  )
+
   // touch: select-then-drag (CEO decision 2026-07-05). A card must be tapped
   // (selected) before it will drag — kills accidental drags while panning,
   // and pairs with the drag shield (nodes.tsx) that puts blank space under
   // the finger where iOS would otherwise claim text gestures. Mouse keeps
   // direct drag.
-  const renderNodes = useMemo(
-    () => (coarse ? nodes.map((n) => ({ ...n, draggable: !!n.selected })) : nodes),
-    [coarse, nodes],
-  )
+  const renderNodes = useMemo(() => {
+    let rendered = coarse
+      ? nodes.map((n) => ({ ...n, draggable: n.type === 'railJoint' ? false : !!n.selected }))
+      : nodes
+    if (snapHint) {
+      rendered = rendered.map((n) => (n.id === snapHint ? { ...n, data: { ...n.data, snap: true } } : n))
+    }
+    return rendered
+  }, [coarse, nodes, snapHint])
 
   // force-select on click — some iOS tap sequences (e.g. first tap after
   // the keyboard dismisses) deliver the click without React Flow
@@ -699,6 +854,7 @@ function BoardInner({ path, changeSignal }: Props) {
             onConnect={onConnect}
             onConnectEnd={onConnectEnd}
             onNodeDragStart={onNodeDragStart}
+            onNodeDrag={onNodeDrag}
             onNodeDragStop={onNodeDragStop}
             onNodesDelete={onNodesDelete}
             onEdgesDelete={onEdgesDelete}
@@ -734,6 +890,33 @@ function BoardInner({ path, changeSignal }: Props) {
       <button className="ps-addcard" onClick={addCard} title="add a text card at the viewport center">
         {t('card.add')}
       </button>
+      <button
+        className={`ps-addrail${railDraw ? ' is-active' : ''}`}
+        onClick={() => setRailDraw((v) => !v)}
+        title={t('rail.hint')}
+      >
+        ⇥ {t('rail.add')}
+      </button>
+      {railDraw && (
+        <div
+          className="ps-raildraw"
+          onPointerDown={onRailPointerDown}
+          onPointerMove={onRailPointerMove}
+          onPointerUp={onRailPointerUp}
+          onPointerCancel={() => {
+            railStroke.current = null
+            setRailPreview(null)
+            setRailDraw(false)
+          }}
+        >
+          <div className="ps-raildraw-hint">{t('rail.hint')}</div>
+          {railPreview && (
+            <svg className="ps-raildraw-svg">
+              <line x1={railPreview.x1} y1={railPreview.y1} x2={railPreview.x2} y2={railPreview.y2} />
+            </svg>
+          )}
+        </div>
+      )}
       {coarse && (selNode || selEdge) && (
         <div className="ps-toolbar">
           {selNode && colorMode ? (

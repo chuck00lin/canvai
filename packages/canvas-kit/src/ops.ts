@@ -11,6 +11,7 @@ import {
   extendRail,
   isRailGroup,
   railInfo,
+  railJointIds,
   railLabel,
   reorderCard,
   setRailPitch,
@@ -297,12 +298,13 @@ export function applyOps(data: CanvasData, ops: Op[]): OpsResult {
       }
       case 'delete_node': {
         const id = resolve(op.id)
-        const index = data.nodes.findIndex((n) => n.id === id)
-        if (index < 0) throw new Error(`unknown node id: "${op.id}"`)
-        data.nodes.splice(index, 1)
+        const node = mustGet(data, id)
+        // deleting a rail takes its joints along — orphaned dots are junk
+        const drop = new Set([id, ...railJointIds(data, node)])
+        data.nodes = data.nodes.filter((n) => !drop.has(n.id))
         const before = data.edges.length
-        data.edges = data.edges.filter((e) => e.fromNode !== id && e.toNode !== id)
-        deleted.push(id)
+        data.edges = data.edges.filter((e) => !drop.has(e.fromNode) && !drop.has(e.toNode))
+        deleted.push(...drop)
         summary.push(`deleted ${id} (+${before - data.edges.length} edges)`)
         break
       }

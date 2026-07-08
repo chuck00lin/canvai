@@ -13,7 +13,7 @@ import { createPortal } from 'react-dom'
 import { Handle, NodeResizer, Position, type NodeProps, type NodeTypes } from '@xyflow/react'
 import { api, compressImage } from '../api'
 import { BoardActions, EditRequest } from './actions'
-import { colorOf, type PSFlowNode } from './mapping'
+import { colorOf, RAIL_MARK, type PSFlowNode } from './mapping'
 import { Markdown } from '../markdown'
 import { useLongPress } from './useLongPress'
 import { COARSE_QUERY, PHONE_QUERY, useMediaQuery } from '../useMediaQuery'
@@ -435,6 +435,78 @@ function GroupNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   )
 }
 
+/**
+ * A rail slot. The 10×10 node is spec-real; the visible dot is CSS drawn
+ * larger. Not draggable/selectable (mapping.ts) — the grid belongs to the
+ * rail. Handles stay so humans can draw attach edges into a slot.
+ */
+function RailJointNode({ data }: NodeProps<PSFlowNode>) {
+  return (
+    <div
+      className={`ps-joint${data.occupied ? ' is-occupied' : ''}${data.snap ? ' is-snap' : ''}`}
+      title={data.occupied ? undefined : 'empty slot — drop a card here'}
+    >
+      <Sides />
+    </div>
+  )
+}
+
+/**
+ * The rail body. Label is edited WITHOUT the RAIL_MARK prefix and the marker
+ * is re-attached on save — losing it would demote the rail to a plain group.
+ * No resizer yet: length ↔ slot count sync is slice 3.
+ */
+function RailGroupNode({ id, data, selected }: NodeProps<PSFlowNode>) {
+  const { commitLabel, notifyEditing } = useContext(BoardActions)
+  const [editing, setEditingState] = useState(false)
+  const [draft, setDraft] = useState('')
+  const node = data.node
+  const shown = (node.label ?? '').slice(RAIL_MARK.length).trim()
+  const setEditing = (on: boolean) => {
+    setEditingState(on)
+    notifyEditing(on)
+  }
+  const beginLabel = () => {
+    if (editing) return
+    setDraft(shown)
+    setEditing(true)
+  }
+  useEditRequest(id, beginLabel)
+  const press = useLongPress({ onDoubleTap: beginLabel })
+
+  return (
+    <div className={`ps-rail${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)} {...press}>
+      <Sides />
+      {editing ? (
+        <input
+          className="ps-rail-label ps-group-input nodrag"
+          autoFocus
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={() => {
+            setEditing(false)
+            if (draft !== shown) commitLabel(id, `${RAIL_MARK} ${draft}`.trimEnd())
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') (event.target as HTMLInputElement).blur()
+            if (event.key === 'Escape') setEditing(false)
+          }}
+        />
+      ) : (
+        <div
+          className="ps-rail-label"
+          onDoubleClick={(event) => {
+            event.stopPropagation()
+            beginLabel()
+          }}
+        >
+          ⇥ {shown || 'rail'}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // memo: default shallow compare. A value-comparator (samePSNode) that skipped
 // re-renders on unrelated board changes was REVERTED 2026-07-06: on iPad/iPhone
 // Safari it unmasked a compositing bug — after heavy interaction + a pan, cards
@@ -448,4 +520,6 @@ export const nodeTypes: NodeTypes = {
   file: memo(FileNode),
   link: memo(LinkNode),
   group: memo(GroupNode),
+  railJoint: memo(RailJointNode),
+  railGroup: memo(RailGroupNode),
 }

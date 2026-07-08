@@ -101,11 +101,22 @@ export function railInfo(data: CanvasData, group: CanvasNode): RailInfo {
   const jointIds = new Set(joints.map((j) => j.id))
   const slotOf = new Map(joints.map((j, i) => [j.id, i]))
   const cards = new Map<number, CanvasNode[]>()
+  // an attachment is any edge between a joint and a non-joint card, in either
+  // direction — humans draw them both ways
   for (const e of edges(data)) {
-    if (!jointIds.has(e.toNode) || jointIds.has(e.fromNode)) continue
-    const card = nodes(data).find((n) => n.id === e.fromNode)
-    if (!card) continue
-    const slot = slotOf.get(e.toNode)!
+    let jointId: string
+    let cardId: string
+    if (jointIds.has(e.toNode) && !jointIds.has(e.fromNode)) {
+      jointId = e.toNode
+      cardId = e.fromNode
+    } else if (jointIds.has(e.fromNode) && !jointIds.has(e.toNode)) {
+      jointId = e.fromNode
+      cardId = e.toNode
+    } else continue
+    const card = nodes(data).find((n) => n.id === cardId)
+    if (!card || card.type === 'group') continue
+    const slot = slotOf.get(jointId)!
+    if (cards.get(slot)?.some((c) => c.id === card.id)) continue
     cards.set(slot, [...(cards.get(slot) ?? []), card])
   }
 
@@ -188,10 +199,38 @@ function shaftEdges(data: CanvasData, rail: RailInfo): CanvasEdge[] {
   return edges(data).filter((e) => jointIds.has(e.fromNode) && jointIds.has(e.toNode))
 }
 
-/** Attach edges from a specific card into this rail. */
+/** Attach edges between a specific card and this rail's joints (either direction). */
 function attachEdges(data: CanvasData, rail: RailInfo, cardId: string): CanvasEdge[] {
   const jointIds = new Set(rail.joints.map((j) => j.id))
-  return edges(data).filter((e) => e.fromNode === cardId && jointIds.has(e.toNode))
+  return edges(data).filter(
+    (e) =>
+      (e.fromNode === cardId && jointIds.has(e.toNode)) || (e.toNode === cardId && jointIds.has(e.fromNode)),
+  )
+}
+
+/** Point an attach edge at a different joint, keeping its direction, with fresh deterministic sides. */
+function retargetAttachEdge(
+  e: CanvasEdge,
+  cardId: string,
+  jointId: string,
+  side: 'above' | 'below' | 'left' | 'right',
+): void {
+  const s = ATTACH_SIDES[side]
+  if (e.fromNode === cardId) {
+    e.toNode = jointId
+    e.fromSide = s.fromSide
+    e.toSide = s.toSide
+  } else {
+    e.fromNode = jointId
+    e.fromSide = s.toSide
+    e.toSide = s.fromSide
+  }
+}
+
+/** The joint node ids of a rail — callers deleting a rail group cascade to these. */
+export function railJointIds(data: CanvasData, group: CanvasNode): string[] {
+  if (!isRailGroup(group)) return []
+  return railInfo(data, group).joints.map((j) => j.id)
 }
 
 export interface CreateRailOpts {
@@ -290,8 +329,7 @@ function shiftTail(data: CanvasData, rail: RailInfo, from: number): void {
     for (const card of cs) {
       placeCard(rail, s + 1, card)
       for (const e of attachEdges(data, rail, card.id)) {
-        e.toNode = rail.joints[s + 1]!.id
-        Object.assign(e, ATTACH_SIDES[slotSide(rail, s + 1)])
+        retargetAttachEdge(e, card.id, rail.joints[s + 1]!.id, slotSide(rail, s + 1))
       }
     }
   }
