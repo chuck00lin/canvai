@@ -192,8 +192,10 @@ export function toFlow(data: CanvasData, pinned: ReadonlySet<string>): { nodes: 
     const stroke = colorOf(e.color) ?? (shaft ? '#7a8194' : '#9aa0a6')
     let sourceHandle = e.fromSide as string | undefined
     let targetHandle = e.toSide as string | undefined
-    // neither side declared = an agent edge: route it by shortest sides
-    if (!sourceHandle && !targetHandle) {
+    // route by shortest sides when no side is declared (agent edges) — and
+    // ALWAYS for attach edges: the card's hang position is the human's to
+    // change, so stored sides go stale the moment they drag it
+    if ((!sourceHandle && !targetHandle) || attach) {
       const s = byId.get(e.fromNode)
       const t = byId.get(e.toNode)
       if (s && t) {
@@ -213,6 +215,9 @@ export function toFlow(data: CanvasData, pinned: ReadonlySet<string>): { nodes: 
       // rail plumbing draws as straight segments: a bezier S-curve into a
       // point-sized joint reads as noise
       ...(shaft || attach ? { type: 'straight' } : {}),
+      // a short thin dashed line is a hopeless click target — fatten the
+      // interactive band so the attach line can actually be selected/deleted
+      ...(attach ? { interactionWidth: 28 } : {}),
       // spec defaults: arrowhead at the target unless toEnd says otherwise
       ...(ends.toEnd === 'none' ? {} : { markerEnd: { type: MarkerType.ArrowClosed, color: stroke } }),
       ...(ends.fromEnd === 'arrow' ? { markerStart: { type: MarkerType.ArrowClosed, color: stroke } } : {}),

@@ -44,6 +44,34 @@ describe('resizeRail', () => {
     expect(shaftArrowheads(data)).toBe(1)
   })
 
+  it('preserves a custom hang offset across resize and insert-shift', () => {
+    const data = board()
+    applyOps(data, [
+      { op: 'add_rail', label: 't', slots: 4, pitch: 100, ref: 'r' },
+      { op: 'attach_to_rail', rail: '$r', text: 'custom', slot: 2 },
+    ])
+    let rail = findRails(data)[0]!
+    const card = rail.cards.get(1)![0]!
+    // the human hangs the card far below-left of its joint
+    card.x = rail.joints[1]!.x - 300
+    card.y = rail.joints[1]!.y + 250
+    const dx = card.x - rail.joints[1]!.x
+    const dy = card.y - rail.joints[1]!.y
+
+    const g = rail.group
+    resizeRail(data, rail, { x: g.x, y: g.y, width: 640, height: g.height }) // grow
+    rail = findRails(data)[0]!
+    expect(card.x - rail.joints[1]!.x).toBe(dx)
+    expect(card.y - rail.joints[1]!.y).toBe(dy)
+
+    // insert at its slot: the card shifts one pitch toward the tail, hang intact
+    applyOps(data, [{ op: 'attach_to_rail', rail: rail.group.id, text: 'insert', slot: 2 }])
+    rail = findRails(data)[0]!
+    expect(rail.cards.get(2)![0]!.text).toBe('custom')
+    expect(card.x - rail.joints[2]!.x).toBe(dx)
+    expect(card.y - rail.joints[2]!.y).toBe(dy)
+  })
+
   it('slides the origin with the dragged box', () => {
     const data = board()
     applyOps(data, [{ op: 'add_rail', label: 't', slots: 3, pitch: 100 }])

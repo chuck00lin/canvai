@@ -540,23 +540,16 @@ function BoardInner({ path, changeSignal }: Props) {
           const cx = now.x + current.data.node.width / 2
           const cy = now.y + current.data.node.height / 2
           const hit = nearestSlot(lookup, cx, cy)
-          const attachedAt = lookup.cardRail.get(current.id)
           if (hit) {
+            // dropped on the rail itself: seat it at that slot (occupied = insert)
             railChanges.push({ kind: 'rail_attach', rail: hit.railId, card: current.id, slot: hit.slot + 1 })
             skipGeometry.add(current.id)
-          } else if (attachedAt) {
-            // dragging an attached card NEVER detaches implicitly — an
-            // accidental drag was silently breaking the line (CEO 2026-07-08).
-            // Out of range = snap back; detaching is explicit: delete the
-            // dashed edge, the touch toolbar's detach, or the agent op.
-            railChanges.push({
-              kind: 'rail_attach',
-              rail: attachedAt.railId,
-              card: current.id,
-              slot: attachedAt.slot + 1,
-            })
-            skipGeometry.add(current.id)
           }
+          // dropped anywhere else: the geometry commit stands. For an attached
+          // card that means the human is adjusting its hang — which side of
+          // the rail and how long the line is are theirs to choose (CEO
+          // 2026-07-08); the attachment holds and the line just follows.
+          // Detaching stays explicit: delete the dashed edge.
         }
       }
       const changed = [...moves.entries()].filter(

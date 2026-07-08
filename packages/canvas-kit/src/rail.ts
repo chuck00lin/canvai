@@ -208,23 +208,14 @@ function attachEdges(data: CanvasData, rail: RailInfo, cardId: string): CanvasEd
   )
 }
 
-/** Point an attach edge at a different joint, keeping its direction, with fresh deterministic sides. */
-function retargetAttachEdge(
-  e: CanvasEdge,
-  cardId: string,
-  jointId: string,
-  side: 'above' | 'below' | 'left' | 'right',
-): void {
-  const s = ATTACH_SIDES[side]
-  if (e.fromNode === cardId) {
-    e.toNode = jointId
-    e.fromSide = s.fromSide
-    e.toSide = s.toSide
-  } else {
-    e.fromNode = jointId
-    e.fromSide = s.toSide
-    e.toSide = s.fromSide
-  }
+/**
+ * Point an attach edge at a different joint, keeping its direction and sides —
+ * the web client re-routes attach edges by closest sides on every render, and
+ * the card's hang position (side, line length) belongs to the human.
+ */
+function retargetAttachEdge(e: CanvasEdge, cardId: string, jointId: string): void {
+  if (e.fromNode === cardId) e.toNode = jointId
+  else e.fromNode = jointId
 }
 
 /** The joint node ids of a rail — callers deleting a rail group cascade to these. */
@@ -327,9 +318,11 @@ function shiftTail(data: CanvasData, rail: RailInfo, from: number): void {
     rail.cards.delete(s)
     rail.cards.set(s + 1, cs)
     for (const card of cs) {
-      placeCard(rail, s + 1, card)
+      // translate one pitch toward the tail — a custom hang survives the shift
+      if (rail.orient === 'h') card.x += rail.pitch
+      else card.y += rail.pitch
       for (const e of attachEdges(data, rail, card.id)) {
-        retargetAttachEdge(e, card.id, rail.joints[s + 1]!.id, slotSide(rail, s + 1))
+        retargetAttachEdge(e, card.id, rail.joints[s + 1]!.id)
       }
     }
   }
@@ -355,12 +348,37 @@ export function reorderCard(data: CanvasData, rail: RailInfo, card: CanvasNode, 
   attachCard(data, rail, card, toSlot)
 }
 
-/** Change pitch and re-project every joint and attached card onto the new grid. */
+/** Each attached card's offset from its joint — captured before a grid change, restored after. */
+function cardOffsets(rail: RailInfo): Map<string, { dx: number; dy: number }> {
+  const offsets = new Map<string, { dx: number; dy: number }>()
+  for (const [slot, cs] of rail.cards) {
+    const joint = rail.joints[slot]
+    if (!joint) continue
+    for (const card of cs) offsets.set(card.id, { dx: card.x - joint.x, dy: card.y - joint.y })
+  }
+  return offsets
+}
+
+function restoreCards(rail: RailInfo, offsets: Map<string, { dx: number; dy: number }>): void {
+  for (const [slot, cs] of rail.cards) {
+    const joint = rail.joints[slot]!
+    for (const card of cs) {
+      const o = offsets.get(card.id)
+      if (o) {
+        card.x = joint.x + o.dx
+        card.y = joint.y + o.dy
+      } else placeCard(rail, slot, card)
+    }
+  }
+}
+
+/** Change pitch and re-project the grid; attached cards keep their hang offsets. */
 export function setRailPitch(data: CanvasData, rail: RailInfo, pitch: number): void {
   if (pitch < JOINT_SIZE * 2) throw new Error(`set_rail: pitch must be >= ${JOINT_SIZE * 2}`)
+  const offsets = cardOffsets(rail)
   rail.pitch = pitch
   rail.joints.forEach((joint, slot) => Object.assign(joint, jointPos(rail, slot)))
-  for (const [slot, cs] of rail.cards) for (const card of cs) placeCard(rail, slot, card)
+  restoreCards(rail, offsets)
   fitGroup(rail)
   writeCache(rail)
 }
@@ -381,6 +399,7 @@ export function resizeRail(
   const occupied = [...rail.cards.keys()]
   const minSlots = occupied.length > 0 ? Math.max(...occupied) + 1 : 2
   const slots = Math.max(2, minSlots, Math.round(usable / rail.pitch) + 1)
+  const offsets = cardOffsets(rail)
 
   const first = rail.joints[0]!
   if (rail.orient === 'h') first.x = Math.round(box.x + GROUP_PAD)
@@ -404,7 +423,7 @@ export function resizeRail(
   for (let i = 1; i < rail.joints.length; i++) {
     data.edges!.push(shaftEdge(rail, rail.joints[i - 1]!, rail.joints[i]!, i === rail.joints.length - 1))
   }
-  for (const [slot, cs] of rail.cards) for (const card of cs) placeCard(rail, slot, card)
+  restoreCards(rail, offsets)
   fitGroup(rail)
   writeCache(rail)
   return slots
