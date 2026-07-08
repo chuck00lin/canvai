@@ -515,7 +515,15 @@ function RailGroupNode({ id, data, selected }: NodeProps<PSFlowNode>) {
 
   return (
     <div className={`ps-rail${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)} {...press}>
-      <Sides />
+      {/* non-connectable: dragging a line from the rail BODY looks like a slot
+          attach but isn't — edges belong on the dots. Handles stay in the DOM
+          so agent-made group edges still have anchors to render from. */}
+      {SIDES.map(([id, position]) => (
+        <Handle key={`t-${id}`} id={id} type="target" position={position} className="ps-handle" isConnectable={false} />
+      ))}
+      {SIDES.map(([id, position]) => (
+        <Handle key={`s-${id}`} id={id} type="source" position={position} className="ps-handle" isConnectable={false} />
+      ))}
       {editing ? (
         <input
           className="ps-rail-label ps-group-input nodrag"
