@@ -439,14 +439,53 @@ function GroupNode({ id, data, selected }: NodeProps<PSFlowNode>) {
  * A rail slot. The 10×10 node is spec-real; the visible dot is CSS drawn
  * larger. Not draggable/selectable (mapping.ts) — the grid belongs to the
  * rail. Handles stay so humans can draw attach edges into a slot.
+ *
+ * All four handles sit STACKED AT THE CENTER (invisible): a joint is a point,
+ * so every edge — whatever side id it carries — must visually converge into
+ * the dot instead of stopping at the 10×10 box border ("arrows attach to the
+ * slot's frame", CEO 2026-07-08).
  */
+const JOINT_HANDLE: CSSProperties = {
+  left: '50%',
+  top: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: 14,
+  height: 14,
+  minWidth: 0,
+  minHeight: 0,
+  border: 'none',
+  background: 'transparent',
+  borderRadius: '50%',
+  opacity: 0,
+}
+
+function JointHandles() {
+  return (
+    <>
+      {SIDES.map(([id, position]) => (
+        <Handle
+          key={`t-${id}`}
+          id={id}
+          type="target"
+          position={position}
+          style={JOINT_HANDLE}
+          isConnectableStart={false}
+        />
+      ))}
+      {SIDES.map(([id, position]) => (
+        <Handle key={`s-${id}`} id={id} type="source" position={position} style={JOINT_HANDLE} />
+      ))}
+    </>
+  )
+}
+
 function RailJointNode({ data }: NodeProps<PSFlowNode>) {
   return (
     <div
       className={`ps-joint${data.occupied ? ' is-occupied' : ''}${data.snap ? ' is-snap' : ''}`}
       title={data.occupied ? undefined : 'empty slot — drop a card here'}
     >
-      <Sides />
+      <JointHandles />
     </div>
   )
 }
