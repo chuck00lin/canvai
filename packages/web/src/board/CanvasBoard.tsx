@@ -29,7 +29,6 @@ import {
   CANVAS_COLORS,
   colorOf,
   nearestSlot,
-  SNAP_OUT,
   toFlow,
   type PSFlowNode,
   type RailLookup,
@@ -530,22 +529,17 @@ function BoardInner({ path, changeSignal }: Props) {
             railChanges.push({ kind: 'rail_attach', rail: hit.railId, card: current.id, slot: hit.slot + 1 })
             skipGeometry.add(current.id)
           } else if (attachedAt) {
-            const rail = lookup.rails.find((r) => r.id === attachedAt.railId)
-            const joint = rail?.joints[attachedAt.slot]
-            const dist = joint ? Math.hypot(cx - joint.cx, cy - joint.cy) : Infinity
-            if (dist > SNAP_OUT) {
-              railChanges.push({ kind: 'rail_detach', rail: attachedAt.railId, card: current.id })
-              // geometry commits: the card rests where it was dropped
-            } else {
-              // grey zone between snap-out and snap-in: stay attached, snap back
-              railChanges.push({
-                kind: 'rail_attach',
-                rail: attachedAt.railId,
-                card: current.id,
-                slot: attachedAt.slot + 1,
-              })
-              skipGeometry.add(current.id)
-            }
+            // dragging an attached card NEVER detaches implicitly — an
+            // accidental drag was silently breaking the line (CEO 2026-07-08).
+            // Out of range = snap back; detaching is explicit: delete the
+            // dashed edge, the touch toolbar's detach, or the agent op.
+            railChanges.push({
+              kind: 'rail_attach',
+              rail: attachedAt.railId,
+              card: current.id,
+              slot: attachedAt.slot + 1,
+            })
+            skipGeometry.add(current.id)
           }
         }
       }
@@ -813,6 +807,11 @@ function BoardInner({ path, changeSignal }: Props) {
     selection.nodes.length === 1 && selection.edges.length === 0
       ? nodes.find((n) => n.id === selection.nodes[0])
       : undefined
+  // where the selected card is attached, if anywhere — powers the toolbar detach
+  const selAttached = useMemo(
+    () => (selNode ? buildRailLookup(nodes, edges).cardRail.get(selNode.id) : undefined),
+    [nodes, edges, selNode],
+  )
   const selEdge =
     selection.edges.length === 1 && selection.nodes.length === 0
       ? edges.find((e) => e.id === selection.edges[0])
@@ -949,6 +948,14 @@ function BoardInner({ path, changeSignal }: Props) {
               <button onClick={() => setColorMode(true)} aria-label="card color">
                 🎨
               </button>
+              {selAttached && (
+                <button
+                  onClick={() => mutate([{ kind: 'rail_detach', rail: selAttached.railId, card: selNode.id }])}
+                  aria-label="detach this card from its rail"
+                >
+                  ⛓️ {t('toolbar.detach')}
+                </button>
+              )}
               <button
                 onClick={() =>
                   mutate([{ kind: 'set_discuss', id: selNode.id, discuss: selNode.data.node.discuss === false }])
