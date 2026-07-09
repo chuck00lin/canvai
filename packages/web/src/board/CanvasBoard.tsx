@@ -66,7 +66,7 @@ function BoardInner({ path, changeSignal }: Props) {
   nodesRef.current = nodes
   const edgesRef = useRef<FlowEdge[]>([])
   edgesRef.current = edges
-  const { screenToFlowPosition } = useReactFlow()
+  const { screenToFlowPosition, getZoom } = useReactFlow()
   // touch devices get a selection toolbar: double-click, drag-from-handle and
   // the Delete key have no natural touch equivalent
   const coarse = useMediaQuery(COARSE_QUERY)
@@ -753,6 +753,19 @@ function BoardInner({ path, changeSignal }: Props) {
     const end = lockEnd(s, event.clientX, event.clientY)
     setRailPreview({ x1: s.x - s.rect.left, y1: s.y - s.rect.top, x2: end.x - s.rect.left, y2: end.y - s.rect.top })
   }, [])
+  // Esc backs out of the draw mode — a mode with no exit key feels like a trap
+  useEffect(() => {
+    if (!railDraw) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      railStroke.current = null
+      setRailPreview(null)
+      setRailDraw(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [railDraw])
+
   const onRailPointerUp = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       const s = railStroke.current
@@ -913,11 +926,39 @@ function BoardInner({ path, changeSignal }: Props) {
           }}
         >
           <div className="ps-raildraw-hint">{t('rail.hint')}</div>
-          {railPreview && (
-            <svg className="ps-raildraw-svg">
-              <line x1={railPreview.x1} y1={railPreview.y1} x2={railPreview.x2} y2={railPreview.y2} />
-            </svg>
-          )}
+          {railPreview &&
+            (() => {
+              // truthful preview: show the slots the release will actually create
+              const dx = railPreview.x2 - railPreview.x1
+              const dy = railPreview.y2 - railPreview.y1
+              const len = Math.hypot(dx, dy)
+              const pitchPx = RAIL_PITCH * getZoom()
+              const slots = Math.max(2, Math.round(len / pitchPx) + 1)
+              const ux = len > 0 ? dx / len : 1
+              const uy = len > 0 ? dy / len : 0
+              const endX = railPreview.x1 + ux * pitchPx * (slots - 1)
+              const endY = railPreview.y1 + uy * pitchPx * (slots - 1)
+              const dots = Array.from({ length: slots }, (_, i) => ({
+                cx: railPreview.x1 + ux * pitchPx * i,
+                cy: railPreview.y1 + uy * pitchPx * i,
+              }))
+              return (
+                <>
+                  <svg className="ps-raildraw-svg">
+                    <line x1={railPreview.x1} y1={railPreview.y1} x2={endX} y2={endY} />
+                    {dots.map((d, i) => (
+                      <circle key={i} cx={d.cx} cy={d.cy} r={6} />
+                    ))}
+                  </svg>
+                  <div
+                    className="ps-raildraw-count"
+                    style={{ left: railPreview.x2 + 16, top: railPreview.y2 - 34 }}
+                  >
+                    {slots} slots
+                  </div>
+                </>
+              )
+            })()}
         </div>
       )}
       {coarse && (selNode || selEdge) && (

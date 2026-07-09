@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { api, connectHub, type BoardInfo } from './api'
 import { CanvasBoard } from './board/CanvasBoard'
 import { ChatPanel } from './ChatPanel'
@@ -27,12 +27,39 @@ export function App() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
   const [chatUnread, setChatUnread] = useState(false)
+  // desktop: both panels collapse (edge tabs) and drag-resize (edge handles),
+  // like the phone overlays but persistent — the canvas is the main act
+  const [sideOpen, setSideOpen] = useState(() => localStorage.getItem('ps-side-open') !== '0')
+  const [deskChatOpen, setDeskChatOpen] = useState(() => localStorage.getItem('ps-chat-open') !== '0')
+  const [sideW, setSideW] = useState(() => Number(localStorage.getItem('ps-side-w')) || 280)
+  const [chatW, setChatW] = useState(() => Number(localStorage.getItem('ps-chat-w')) || 340)
+  useEffect(() => localStorage.setItem('ps-side-open', sideOpen ? '1' : '0'), [sideOpen])
+  useEffect(() => localStorage.setItem('ps-chat-open', deskChatOpen ? '1' : '0'), [deskChatOpen])
+  const panelDrag = useRef<{ which: 'side' | 'chat'; startX: number; startW: number } | null>(null)
+  const startPanelDrag = (which: 'side' | 'chat') => (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId)
+    panelDrag.current = { which, startX: event.clientX, startW: which === 'side' ? sideW : chatW }
+  }
+  const onPanelDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const d = panelDrag.current
+    if (!d) return
+    const delta = event.clientX - d.startX
+    if (d.which === 'side') setSideW(Math.min(480, Math.max(180, d.startW + delta)))
+    else setChatW(Math.min(560, Math.max(240, d.startW - delta)))
+  }
+  const endPanelDrag = () => {
+    const d = panelDrag.current
+    panelDrag.current = null
+    if (!d) return
+    localStorage.setItem('ps-side-w', String(sideW))
+    localStorage.setItem('ps-chat-w', String(chatW))
+  }
   const currentRef = useRef<string | null>(null)
   currentRef.current = current
   const activeRef = useRef<string | null>(null)
   activeRef.current = active
   const chatOpenRef = useRef(false)
-  chatOpenRef.current = chatOpen
+  chatOpenRef.current = phone ? chatOpen : deskChatOpen
 
   const refreshBoards = useCallback(async () => {
     try {
@@ -115,7 +142,14 @@ export function App() {
   }
 
   return (
-    <div className={`ps-app${phone ? ' is-mobile' : ''}`}>
+    <div
+      className={`ps-app${phone ? ' is-mobile' : ''}${!phone && !sideOpen ? ' side-closed' : ''}${!phone && !deskChatOpen ? ' chat-closed' : ''}`}
+      style={
+        phone
+          ? undefined
+          : { gridTemplateColumns: `${sideOpen ? sideW : 0}px 1fr ${deskChatOpen ? chatW : 0}px` }
+      }
+    >
       {phone && (
         <header className="ps-topbar">
           <button className="ps-iconbtn" onClick={() => setDrawerOpen(true)} aria-label="boards">
@@ -211,6 +245,48 @@ export function App() {
           <CanvasBoard key={current} path={current} changeSignal={changeSignal} />
         ) : (
           <div className="ps-placeholder">{t('board.placeholder')}</div>
+        )}
+        {!phone && (
+          <>
+            <button
+              className="ps-paneltab ps-paneltab-left"
+              onClick={() => setSideOpen((v) => !v)}
+              title={sideOpen ? t('panel.collapse') : t('panel.boards')}
+              aria-label="toggle board list"
+            >
+              {sideOpen ? '‹' : '›'}
+            </button>
+            <button
+              className="ps-paneltab ps-paneltab-right"
+              onClick={() => {
+                setDeskChatOpen((v) => !v)
+                setChatUnread(false)
+              }}
+              title={deskChatOpen ? t('panel.collapse') : t('chat.title')}
+              aria-label="toggle chat"
+            >
+              {deskChatOpen ? '›' : '‹'}
+              {!deskChatOpen && chatUnread && <i className="ps-dot" />}
+            </button>
+            {sideOpen && (
+              <div
+                className="ps-panelresize ps-panelresize-left"
+                onPointerDown={startPanelDrag('side')}
+                onPointerMove={onPanelDrag}
+                onPointerUp={endPanelDrag}
+                onPointerCancel={endPanelDrag}
+              />
+            )}
+            {deskChatOpen && (
+              <div
+                className="ps-panelresize ps-panelresize-right"
+                onPointerDown={startPanelDrag('chat')}
+                onPointerMove={onPanelDrag}
+                onPointerUp={endPanelDrag}
+                onPointerCancel={endPanelDrag}
+              />
+            )}
+          </>
         )}
       </main>
       <ChatPanel

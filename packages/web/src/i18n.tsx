@@ -43,7 +43,9 @@ const STRINGS = {
 
   'card.add': { en: '＋ card', zh: '＋ 卡片' },
   'rail.add': { en: 'rail', zh: '軌道' },
-  'rail.hint': { en: 'drag on the canvas to draw a rail (locks to horizontal / vertical)', zh: '在畫布上拖一筆畫出軌道（自動鎖水平/垂直）' },
+  'rail.hint': { en: 'drag on the canvas to draw a rail (locks to horizontal / vertical) · Esc to cancel', zh: '在畫布上拖一筆畫出軌道（自動鎖水平/垂直）· Esc 取消' },
+  'panel.collapse': { en: 'collapse', zh: '收合' },
+  'panel.boards': { en: 'boards', zh: '板列表' },
 
   'chat.title': { en: 'chat', zh: '對話' },
   'chat.send': { en: 'Send', zh: '送出' },

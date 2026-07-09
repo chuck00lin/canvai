@@ -1301,6 +1301,92 @@ body {
   pointer-events: none;
   white-space: nowrap;
 }
+.ps-raildraw-svg circle {
+  fill: #fff;
+  stroke: #08b94e;
+  stroke-width: 2.5;
+}
+.ps-raildraw-count {
+  position: absolute;
+  background: #08b94e;
+  color: #fff;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* desktop panels: edge tabs collapse, edge handles resize */
+.ps-main {
+  position: relative;
+}
+/* collapsed = 0px grid column, NOT display:none — removing a grid item lets
+   the later items slide into the wrong columns (main ended up in the 0px
+   track and chat swallowed 1fr) */
+.ps-app.side-closed .ps-sidebar {
+  overflow: hidden;
+  visibility: hidden;
+  border-right: none;
+}
+.ps-app.chat-closed .ps-chat {
+  overflow: hidden;
+  visibility: hidden;
+  border-left: none;
+}
+.ps-paneltab {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 12;
+  width: 18px;
+  height: 56px;
+  padding: 0;
+  border: 1px solid var(--hair);
+  background: #fff;
+  color: #7a8194;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ps-paneltab:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.ps-paneltab-left {
+  left: 0;
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+}
+.ps-paneltab-right {
+  right: 0;
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+}
+.ps-paneltab .ps-dot {
+  position: absolute;
+  top: 6px;
+  right: 4px;
+}
+.ps-panelresize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  z-index: 11;
+  cursor: col-resize;
+  touch-action: none;
+}
+.ps-panelresize-left {
+  left: -3px;
+}
+.ps-panelresize-right {
+  right: -3px;
+}
+.ps-panelresize:hover {
+  background: rgba(8, 185, 78, 0.18);
+}
 @media (max-width: 720px) {
   .is-mobile .ps-addrail {
     top: auto;
