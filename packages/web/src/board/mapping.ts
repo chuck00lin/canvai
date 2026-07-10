@@ -93,7 +93,9 @@ export function detectRails(data: CanvasData): RailView[] {
         jointId = e.fromNode
         cardId = e.toNode
       } else continue
-      if (byId.get(cardId)?.type === 'group') continue
+      const card = byId.get(cardId)
+      // groups and joint-like dots are never cards (mirrors canvas-kit/rail)
+      if (!card || card.type === 'group' || isJointNode(card)) continue
       attached.set(jointId, [...(attached.get(jointId) ?? []), cardId])
     }
     rails.push({ id: g.id, orient, pitch, joints, attached })
@@ -289,10 +291,9 @@ export const SNAP_OUT = 120
 
 export interface SnapTarget {
   railId: string
-  /** 0-based; may equal joints.length = append past the end (the rail grows) */
+  /** 0-based, always an existing slot */
   slot: number
-  /** undefined for the virtual append slot */
-  jointId?: string
+  jointId: string
 }
 
 /** Nearest slot a card center would attach to, or undefined when out of range. */
@@ -306,13 +307,16 @@ export function nearestSlot(lookup: RailLookup, cx: number, cy: number): SnapTar
     if (perp > SNAP_IN) continue
     const start = r.orient === 'h' ? first.cx : first.cy
     const end = r.orient === 'h' ? last.cx : last.cy
-    const slot = Math.min(Math.max(Math.round((along - start) / r.pitch), 0), r.joints.length)
+    // existing slots only: a drop past the last dot must not silently grow the
+    // rail — the snap hint can't announce a joint that doesn't exist, and a
+    // hint-less attach reads as a kidnapping. Growing is the resize handle's job.
+    const slot = Math.min(Math.max(Math.round((along - start) / r.pitch), 0), r.joints.length - 1)
     const slotCenter = start + slot * r.pitch
     if (Math.abs(along - slotCenter) > r.pitch * 0.75) continue
-    if (along < start - r.pitch * 0.75 || along > end + r.pitch * 1.25) continue
+    if (along < start - r.pitch * 0.75 || along > end + r.pitch * 0.75) continue
     const d = perp + Math.abs(along - slotCenter)
     if (!best || d < best.d) {
-      best = { railId: r.id, slot, jointId: r.joints[slot]?.id, d }
+      best = { railId: r.id, slot, jointId: r.joints[slot]!.id, d }
     }
   }
   return best

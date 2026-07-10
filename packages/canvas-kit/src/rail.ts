@@ -44,6 +44,13 @@ export function defaultPitch(attach: RailAttach): number {
   return attach === 'both' ? PITCH_BOTH : PITCH_SINGLE
 }
 
+/** A rail-marked group can lose its joints (relabeled group, stripped client) — fail with words, not a TypeError. */
+function mustHaveSlots(rail: RailInfo): void {
+  if (rail.joints.length === 0) {
+    throw new Error(`rail ${rail.group.id} has no slots (degraded or mislabeled group) — recreate it with add_rail`)
+  }
+}
+
 export function isRailGroup(n: CanvasNode): boolean {
   return n.type === 'group' && typeof n.label === 'string' && n.label.startsWith(RAIL_MARK)
 }
@@ -114,7 +121,9 @@ export function railInfo(data: CanvasData, group: CanvasNode): RailInfo {
       cardId = e.toNode
     } else continue
     const card = nodes(data).find((n) => n.id === cardId)
-    if (!card || card.type === 'group') continue
+    // groups and joint-like dots are never "cards": an edge linking two rails'
+    // joints must not let rail A adopt (and later move) rail B's joint
+    if (!card || card.type === 'group' || isJoint(card)) continue
     const slot = slotOf.get(jointId)!
     if (cards.get(slot)?.some((c) => c.id === card.id)) continue
     cards.set(slot, [...(cards.get(slot) ?? []), card])
@@ -264,6 +273,7 @@ export function createRail(data: CanvasData, opts: CreateRailOpts): RailInfo {
 
 /** Append slots to the end of a rail, moving the arrowhead to the new last segment. */
 export function extendRail(data: CanvasData, rail: RailInfo, add: number): void {
+  mustHaveSlots(rail)
   if (add < 1) throw new Error('extend_rail: "add" must be >= 1')
   const lastEdge = shaftEdges(data, rail).find((e) => e.toNode === rail.joints[rail.joints.length - 1]!.id)
   if (lastEdge) lastEdge.toEnd = 'none'
@@ -286,9 +296,18 @@ export function extendRail(data: CanvasData, rail: RailInfo, add: number): void 
  * full slot.
  */
 export function attachCard(data: CanvasData, rail: RailInfo, card: CanvasNode, slot?: number): number {
+  mustHaveSlots(rail)
   if (rail.cards.get(slot ?? -1)?.some((c) => c.id === card.id)) return slot!
   for (const [s, cs] of rail.cards) {
     if (cs.some((c) => c.id === card.id)) throw new Error(`card ${card.id} is already attached at slot ${s + 1}`)
+  }
+  // a card lives on one rail: attaching here releases any other rail's hold,
+  // so the agent path and the human drop behave identically
+  for (const g of nodes(data).filter((n) => isRailGroup(n) && n.id !== rail.group.id)) {
+    const other = railInfo(data, g)
+    if ([...other.cards.values()].some((cs) => cs.some((c) => c.id === card.id))) {
+      detachCard(data, other, card)
+    }
   }
   let target = slot
   if (target === undefined) {
@@ -374,6 +393,7 @@ function restoreCards(rail: RailInfo, offsets: Map<string, { dx: number; dy: num
 
 /** Change pitch and re-project the grid; attached cards keep their hang offsets. */
 export function setRailPitch(data: CanvasData, rail: RailInfo, pitch: number): void {
+  mustHaveSlots(rail)
   if (pitch < JOINT_SIZE * 2) throw new Error(`set_rail: pitch must be >= ${JOINT_SIZE * 2}`)
   const offsets = cardOffsets(rail)
   rail.pitch = pitch
@@ -394,6 +414,7 @@ export function resizeRail(
   rail: RailInfo,
   box: { x: number; y: number; width: number; height: number },
 ): number {
+  mustHaveSlots(rail)
   const length = rail.orient === 'h' ? box.width : box.height
   const usable = length - 2 * GROUP_PAD - JOINT_SIZE
   const occupied = [...rail.cards.keys()]

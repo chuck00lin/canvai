@@ -1306,6 +1306,9 @@ body {
   stroke: #08b94e;
   stroke-width: 2.5;
 }
+.ps-raildraw-svg polygon {
+  fill: #08b94e;
+}
 .ps-raildraw-count {
   position: absolute;
   background: #08b94e;

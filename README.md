@@ -112,6 +112,7 @@ Every layer can fail independently: kill the server and humans still open boards
 | `list_boards` / `get_active_board` / `set_active_board` / `create_board` | discover boards; share one focus between human and agent | O(boards) | ✅ |
 | `read_board(mode)` | `structure` (default, coordinate-free) · `full` | structure ≈ ⅓ of full | ✅ |
 | `apply_ops([...])` | atomic batch of semantic edits: add / update / delete / connect / group / relative move, with `$ref` chaining | O(change) | ✅ |
+| rails (inside `apply_ops`) | `add_rail` / `attach_to_rail` / `rail_reorder` / … — a horizontal or vertical arrow with card slots: an **ordered list with a spatial projection**. Timelines and fishbones become list ops ("insert after slot 2"), never coordinates. Humans draw rails with one stroke and drop cards onto slots; `auto_layout` treats rails as rigid | O(1) per op | ✅ |
 | `auto_layout` | ELK layered pass; pinned (human-arranged) nodes stay put, groups move as blocks | O(1) call | ✅ |
 | `events_since(cursor)` | what humans did since last sync: web edits, Obsidian edits, other agents | O(diff) | ✅ |
 | `insert_mermaid(text)` | Mermaid → parse → ELK layout → canvas nodes | structure price, positions free | planned |

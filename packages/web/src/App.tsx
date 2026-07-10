@@ -35,6 +35,10 @@ export function App() {
   const [chatW, setChatW] = useState(() => Number(localStorage.getItem('ps-chat-w')) || 340)
   useEffect(() => localStorage.setItem('ps-side-open', sideOpen ? '1' : '0'), [sideOpen])
   useEffect(() => localStorage.setItem('ps-chat-open', deskChatOpen ? '1' : '0'), [deskChatOpen])
+  // persist widths from effects, not the pointerup handler — the handler's
+  // closure can hold the previous render's value
+  useEffect(() => localStorage.setItem('ps-side-w', String(sideW)), [sideW])
+  useEffect(() => localStorage.setItem('ps-chat-w', String(chatW)), [chatW])
   const panelDrag = useRef<{ which: 'side' | 'chat'; startX: number; startW: number } | null>(null)
   const startPanelDrag = (which: 'side' | 'chat') => (event: ReactPointerEvent<HTMLDivElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -48,11 +52,7 @@ export function App() {
     else setChatW(Math.min(560, Math.max(240, d.startW - delta)))
   }
   const endPanelDrag = () => {
-    const d = panelDrag.current
     panelDrag.current = null
-    if (!d) return
-    localStorage.setItem('ps-side-w', String(sideW))
-    localStorage.setItem('ps-chat-w', String(chatW))
   }
   const currentRef = useRef<string | null>(null)
   currentRef.current = current
@@ -147,7 +147,11 @@ export function App() {
       style={
         phone
           ? undefined
-          : { gridTemplateColumns: `${sideOpen ? sideW : 0}px 1fr ${deskChatOpen ? chatW : 0}px` }
+          : {
+              // minmax lets wide persisted panels give way on narrow windows —
+              // the canvas keeps at least 320px instead of collapsing to 0
+              gridTemplateColumns: `minmax(0, ${sideOpen ? sideW : 0}px) minmax(320px, 1fr) minmax(0, ${deskChatOpen ? chatW : 0}px)`,
+            }
       }
     >
       {phone && (

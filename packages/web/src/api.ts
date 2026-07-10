@@ -46,7 +46,7 @@ export interface BoardInfo {
 }
 
 export type Mutation =
-  | { kind: 'set_geometry'; id: string; x?: number; y?: number; width?: number; height?: number }
+  | { kind: 'set_geometry'; id: string; x?: number; y?: number; width?: number; height?: number; pin?: boolean }
   | { kind: 'set_text'; id: string; text: string }
   | { kind: 'set_color'; id: string; color?: string }
   | { kind: 'set_label'; id: string; label: string }

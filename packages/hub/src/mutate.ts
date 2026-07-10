@@ -24,7 +24,7 @@ import {
  */
 
 export type Mutation =
-  | { kind: 'set_geometry'; id: string; x?: number; y?: number; width?: number; height?: number }
+  | { kind: 'set_geometry'; id: string; x?: number; y?: number; width?: number; height?: number; pin?: boolean }
   | { kind: 'set_text'; id: string; text: string }
   | { kind: 'set_color'; id: string; color?: string }
   | { kind: 'set_label'; id: string; label: string }
@@ -64,7 +64,9 @@ export function applyMutations(data: CanvasData, mutations: Mutation[]): MutateO
     switch (m.kind) {
       case 'set_geometry': {
         const node = mustGet(m.id)
-        if (m.x !== undefined || m.y !== undefined) movedIds.push(node.id)
+        // pin: false = a derived move (e.g. cards riding a dragged rail), not
+        // the human arranging this node — it must not opt out of auto-layout
+        if ((m.x !== undefined || m.y !== undefined) && m.pin !== false) movedIds.push(node.id)
         if (m.x !== undefined) node.x = Math.round(m.x)
         if (m.y !== undefined) node.y = Math.round(m.y)
         if (m.width !== undefined) node.width = Math.round(m.width)
@@ -146,7 +148,14 @@ export function applyMutations(data: CanvasData, mutations: Mutation[]): MutateO
         break
       }
       case 'delete_node': {
-        const node = mustGet(m.id)
+        // idempotent: React Flow deletes a rail group and its joint children in
+        // one batch, and the group's cascade removes the joints first — the
+        // follow-up ids must not fail the whole mutation
+        const node = nodes(data).find((n) => n.id === m.id)
+        if (!node) {
+          summary.push(`already deleted ${m.id}`)
+          break
+        }
         // deleting a rail takes its joints along — orphaned dots are junk
         const drop = new Set([node.id, ...railJointIds(data, node)])
         data.nodes = data.nodes.filter((n) => !drop.has(n.id))

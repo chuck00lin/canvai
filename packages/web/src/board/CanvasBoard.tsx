@@ -500,6 +500,9 @@ function BoardInner({ path, changeSignal }: Props) {
       // cards a rail seats itself — committing their raw drop position would
       // fight the snap
       const skipGeometry = new Set<string>()
+      // cards that merely rode a dragged rail: their geometry commits, but the
+      // hub must not pin them (the human arranged the rail, not each card)
+      const ridingCards = new Set<string>()
       const movedEnough = (id: string, pos: { x: number; y: number }) => {
         const start = dragStartPos.current.get(id)
         return !start || Math.abs(start.x - pos.x) > 0.5 || Math.abs(start.y - pos.y) > 0.5
@@ -527,7 +530,10 @@ function BoardInner({ path, changeSignal }: Props) {
             for (const [cardId, at] of lookup.cardRail) {
               if (at.railId !== current.id || moves.has(cardId)) continue
               const cardStart = dragStartPos.current.get(cardId)
-              if (cardStart) moves.set(cardId, { x: cardStart.x + ddx, y: cardStart.y + ddy })
+              if (cardStart) {
+                moves.set(cardId, { x: cardStart.x + ddx, y: cardStart.y + ddy })
+                ridingCards.add(cardId)
+              }
             }
           }
         }
@@ -540,11 +546,16 @@ function BoardInner({ path, changeSignal }: Props) {
           const cx = now.x + current.data.node.width / 2
           const cy = now.y + current.data.node.height / 2
           const hit = nearestSlot(lookup, cx, cy)
-          if (hit) {
+          const attachedAt = lookup.cardRail.get(current.id)
+          const ownSlot = hit && attachedAt && hit.railId === attachedAt.railId && hit.slot === attachedAt.slot
+          if (hit && !ownSlot) {
             // dropped on the rail itself: seat it at that slot (occupied = insert)
             railChanges.push({ kind: 'rail_attach', rail: hit.railId, card: current.id, slot: hit.slot + 1 })
             skipGeometry.add(current.id)
           }
+          // near its OWN slot: the human is adjusting the hang (e.g. pulling the
+          // card closer than the snap radius) — re-seating would undo exactly
+          // that, so the geometry commit stands and the attachment just holds
           // dropped anywhere else: the geometry commit stands. For an attached
           // card that means the human is adjusting its hang — which side of
           // the rail and how long the line is are theirs to choose (CEO
@@ -556,7 +567,16 @@ function BoardInner({ path, changeSignal }: Props) {
         ([id, pos]) => !skipGeometry.has(id) && movedEnough(id, pos),
       )
       mutate([
-        ...changed.map(([id, pos]) => ({ kind: 'set_geometry', id, x: pos.x, y: pos.y }) as Mutation),
+        ...changed.map(
+          ([id, pos]) =>
+            ({
+              kind: 'set_geometry',
+              id,
+              x: pos.x,
+              y: pos.y,
+              ...(ridingCards.has(id) ? { pin: false } : {}),
+            }) as Mutation,
+        ),
         ...railChanges,
       ])
       if (pendingReload.current) {
@@ -942,6 +962,15 @@ function BoardInner({ path, changeSignal }: Props) {
                 cx: railPreview.x1 + ux * pitchPx * i,
                 cy: railPreview.y1 + uy * pitchPx * i,
               }))
+              // rails always order slots by ascending coordinate, so the
+              // arrowhead of the CREATED rail sits at the max end — show that
+              // truthfully even when the stroke was drawn right-to-left
+              const horiz = Math.abs(dx) >= Math.abs(dy)
+              const ax = horiz ? Math.max(railPreview.x1, endX) : railPreview.x1
+              const ay = horiz ? railPreview.y1 : Math.max(railPreview.y1, endY)
+              const tri = horiz
+                ? `${ax + 12},${ay} ${ax},${ay - 8} ${ax},${ay + 8}`
+                : `${ax},${ay + 12} ${ax - 8},${ay} ${ax + 8},${ay}`
               return (
                 <>
                   <svg className="ps-raildraw-svg">
@@ -949,6 +978,7 @@ function BoardInner({ path, changeSignal }: Props) {
                     {dots.map((d, i) => (
                       <circle key={i} cx={d.cx} cy={d.cy} r={6} />
                     ))}
+                    <polygon points={tri} />
                   </svg>
                   <div
                     className="ps-raildraw-count"

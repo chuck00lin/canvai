@@ -19,7 +19,7 @@ Terminal 對視覺化思考者是一條太窄的管道。canvai 讓你和一個 
 
 架構圖與完整決策理由（含「為什麼不做 mermaid 互動引擎」「為什麼 Obsidian 只當 client 不當 server」的論證）請見英文版 [README](README.md) 與[設計文件](docs/design.md)。
 
-**現在就能用**：完整閉環——把 canvai 接到任何 repo，Claude Code 就在瀏覽器的板上畫、你同時拖卡片回應它（MCP hub＋canvas 函式庫＋輕量本地 server＋React Flow 編輯器＋active board 閉環＋拖拉即 pin＋events_since）。
+**現在就能用**：完整閉環——把 canvai 接到任何 repo，Claude Code 就在瀏覽器的板上畫、你同時拖卡片回應它（MCP hub＋canvas 函式庫＋輕量本地 server＋React Flow 編輯器＋active board 閉環＋拖拉即 pin＋events_since）。也包括 **rails（軌道）**：水平/垂直、帶掛卡格位的箭頭——本質是「有空間投影的有序列表」，時間軸、魚骨圖對 agent 變成列表操作（「插在第 2 格後面」），完全不碰座標；人這邊一筆畫出軌道、把卡拖上格位即可，auto-layout 永遠不會打散它。
 
 **接下來**：**即時協作**——Yjs CRDT 讓人與 agent 同時編輯、presence（游標）、mermaid 匯入爆開、`@agent` pin 提問協定、多板 portal。板的*協定*在真實情境收斂前保持彈性。
 

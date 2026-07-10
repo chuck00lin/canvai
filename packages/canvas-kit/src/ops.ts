@@ -351,7 +351,11 @@ export function applyOps(data: CanvasData, ops: Op[]): OpsResult {
           dy = op.dy ?? 0
         }
         const moved = shiftWithMembers(data, node, dx, dy)
-        if (isRailGroup(node)) shiftRailCards(data, railInfo(data, node), dx, dy, moved)
+        // every rail that rode along (the node itself, or one inside a moved
+        // group) carries its attached cards — they hang outside all bboxes
+        for (const g of nodes(data)) {
+          if (moved.has(g.id) && isRailGroup(g)) shiftRailCards(data, railInfo(data, g), dx, dy, moved)
+        }
         summary.push(`moved ${node.id} by (${dx}, ${dy})`)
         break
       }
