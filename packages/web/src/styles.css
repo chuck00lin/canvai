@@ -1306,6 +1306,82 @@ body {
   stroke: #08b94e;
   stroke-width: 2.5;
 }
+
+/* right-click context menu — the mouse analog of the touch toolbar */
+.ps-ctxmenu {
+  position: fixed;
+  z-index: 60;
+  min-width: 168px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid var(--hair);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(20, 24, 33, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ps-ctxmenu > button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 13.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ps-ctxmenu > button:hover {
+  background: rgba(122, 129, 148, 0.12);
+}
+.ps-ctxmenu > button.ps-toolbar-danger:hover {
+  background: rgba(233, 49, 71, 0.12);
+}
+.ps-ctxmenu-colors {
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px;
+}
+.ps-ctxmenu-colors .ps-colordot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  padding: 0;
+}
+.ps-ctxmenu-colors .ps-colordot-none {
+  background: #fff;
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* touch paste button, third in the top-right button row */
+.ps-paste {
+  position: absolute;
+  top: 12px;
+  right: 196px;
+  z-index: 10;
+  padding: 7px 12px;
+  border: 1px solid var(--hair);
+  border-radius: 99px;
+  background: #fff;
+  cursor: pointer;
+}
+@media (max-width: 720px) {
+  .is-mobile .ps-paste {
+    top: auto;
+    right: calc(14px + 192px);
+    bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+    padding: 12px 14px;
+  }
+}
+.ps-toolbar button.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 .ps-raildraw-svg polygon {
   fill: #08b94e;
 }

@@ -44,8 +44,12 @@ const STRINGS = {
   'card.add': { en: '＋ card', zh: '＋ 卡片' },
   'rail.add': { en: 'rail', zh: '軌道' },
   'rail.hint': { en: 'drag on the canvas to draw a rail (locks to horizontal / vertical) · Esc to cancel', zh: '在畫布上拖一筆畫出軌道（自動鎖水平/垂直）· Esc 取消' },
+  'rail.hint.touch': { en: 'drag on the canvas to draw a rail · tap ⇥ again to cancel', zh: '在畫布上拖一筆畫出軌道 · 再點 ⇥ 取消' },
   'panel.collapse': { en: 'collapse', zh: '收合' },
   'panel.boards': { en: 'boards', zh: '板列表' },
+  'toolbar.copy': { en: 'copy', zh: '複製' },
+  'toolbar.paste': { en: 'paste', zh: '貼上' },
+  'toolbar.multi': { en: 'multi', zh: '多選' },
 
   'chat.title': { en: 'chat', zh: '對話' },
   'chat.send': { en: 'Send', zh: '送出' },

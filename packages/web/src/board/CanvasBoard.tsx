@@ -23,6 +23,7 @@ import {
 } from '@xyflow/react'
 import { api, type Mutation } from '../api'
 import { BoardActions, EditRequest, type BoardActionsValue, type EditRequestValue } from './actions'
+import { clipRead, clipWrite, parsePayload, type ClipPayload } from './clipboard'
 import {
   absolutePosition,
   buildRailLookup,
@@ -758,153 +759,138 @@ function BoardInner({ path, changeSignal }: Props) {
     [],
   )
 
-  // ── clipboard: ⌘/Ctrl+C copies the selected cards (plus the edges between
-  // them) as JSON; ⌘/Ctrl+V pastes them slightly offset — on this board or any
-  // other. Plain text from anywhere pastes as a new card.
+  // ── clipboard: copy/paste shared by ⌘C/⌘V, the touch toolbar, and the
+  // context menu. clipWrite/clipRead fall back to an in-app clipboard when
+  // navigator.clipboard is unavailable (plain-http origins — the primary
+  // self-hosted path). Plain text from anywhere pastes as a new card.
   const selectionRef = useRef(selection)
   selectionRef.current = selection
+
+  /** copy the given cards (default: current selection) plus the edges between them */
+  const copyCards = useCallback((wanted?: string[]): boolean => {
+    const ids = new Set(wanted ?? selectionRef.current.nodes)
+    if (ids.size === 0) return false
+    const map = byId()
+    const cards = [...ids]
+      .map((id) => map.get(id))
+      .filter((n): n is PSFlowNode => !!n && (n.type === 'text' || n.type === 'file' || n.type === 'link'))
+    if (cards.length === 0) return false
+    const payload: ClipPayload = {
+      canvai: 1,
+      cards: cards.map((n) => {
+        const abs = absolutePosition(n, map)
+        const node = n.data.node
+        return {
+          id: n.id,
+          type: node.type,
+          text: node.text,
+          file: node.file,
+          url: node.url,
+          color: node.color,
+          x: abs.x,
+          y: abs.y,
+          width: node.width,
+          height: node.height,
+        }
+      }),
+      edges: edgesRef.current
+        .filter((e) => ids.has(e.source) && ids.has(e.target))
+        .map((e) => ({
+          from: e.source,
+          to: e.target,
+          fromSide: (e.sourceHandle as string | null) ?? undefined,
+          toSide: (e.targetHandle as string | null) ?? undefined,
+          label: typeof e.label === 'string' ? e.label : undefined,
+        })),
+    }
+    void clipWrite(JSON.stringify(payload))
+    return true
+  }, [])
+
+  /** paste at `at` (flow coords: payload top-left lands there) or offset from the original spot */
+  const pasteClipboard = useCallback(
+    (at?: { x: number; y: number }) => {
+      void (async () => {
+        const text = await clipRead()
+        if (!text.trim()) return
+        const payload = parsePayload(text)
+        try {
+          if (payload) {
+            const minX = Math.min(...payload.cards.map((c) => c.x))
+            const minY = Math.min(...payload.cards.map((c) => c.y))
+            const dx = at ? at.x - minX : 32
+            const dy = at ? at.y - minY : 32
+            const batch = payload.cards.map((c) =>
+              c.type === 'file' && c.file
+                ? ({
+                    kind: 'add_file_node',
+                    x: c.x + dx,
+                    y: c.y + dy,
+                    file: c.file,
+                    width: c.width,
+                    height: c.height,
+                  } as Mutation)
+                : ({
+                    kind: 'add_text_node',
+                    x: c.x + dx,
+                    y: c.y + dy,
+                    text: c.type === 'link' && c.url ? c.url : (c.text ?? ''),
+                    width: c.width,
+                    height: c.height,
+                  } as Mutation),
+            )
+            const result = await api.mutate(path, batch)
+            const newIds = result.summary
+              .filter((line) => line.startsWith('added '))
+              .map((line) => line.slice('added '.length))
+            const idMap = new Map(payload.cards.map((c, i) => [c.id, newIds[i]]))
+            const follow: Mutation[] = []
+            payload.cards.forEach((c, i) => {
+              const id = newIds[i]
+              if (id && c.color) follow.push({ kind: 'set_color', id, color: c.color })
+            })
+            for (const e of payload.edges ?? []) {
+              const from = idMap.get(e.from)
+              const to = idMap.get(e.to)
+              if (from && to) {
+                follow.push({ kind: 'add_edge', from, to, fromSide: e.fromSide, toSide: e.toSide, label: e.label })
+              }
+            }
+            if (follow.length > 0) await api.mutate(path, follow)
+          } else {
+            // plain text becomes a card
+            const p = at ?? screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
+            await api.mutate(path, [
+              { kind: 'add_text_node', x: at ? p.x : p.x - 150, y: at ? p.y : p.y - 50, text },
+            ])
+          }
+          await load()
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e))
+        }
+      })()
+    },
+    [path, load, screenToFlowPosition],
+  )
+
   useEffect(() => {
-    interface ClipCard {
-      id: string
-      type: string
-      text?: string
-      file?: string
-      url?: string
-      color?: string
-      x: number
-      y: number
-      width: number
-      height: number
-    }
-    interface ClipPayload {
-      canvai: number
-      cards: ClipCard[]
-      edges?: { from: string; to: string; fromSide?: string; toSide?: string; label?: string }[]
-    }
     const inEditor = (target: EventTarget | null) =>
       !!(target as HTMLElement | null)?.closest?.('textarea, input, [contenteditable]')
     const onKey = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || (event.key !== 'c' && event.key !== 'v')) return
       if (inEditor(event.target)) return // never hijack copy/paste while typing
       if (event.key === 'c') {
-        const ids = new Set(selectionRef.current.nodes)
-        if (ids.size === 0) return
-        const map = byId()
-        const cards = [...ids]
-          .map((id) => map.get(id))
-          .filter((n): n is PSFlowNode => !!n && (n.type === 'text' || n.type === 'file' || n.type === 'link'))
-        if (cards.length === 0) return
-        const payload: ClipPayload = {
-          canvai: 1,
-          cards: cards.map((n) => {
-            const abs = absolutePosition(n, map)
-            const node = n.data.node
-            return {
-              id: n.id,
-              type: node.type,
-              text: node.text,
-              file: node.file,
-              url: node.url,
-              color: node.color,
-              x: abs.x,
-              y: abs.y,
-              width: node.width,
-              height: node.height,
-            }
-          }),
-          edges: edgesRef.current
-            .filter((e) => ids.has(e.source) && ids.has(e.target))
-            .map((e) => ({
-              from: e.source,
-              to: e.target,
-              fromSide: (e.sourceHandle as string | null) ?? undefined,
-              toSide: (e.targetHandle as string | null) ?? undefined,
-              label: typeof e.label === 'string' ? e.label : undefined,
-            })),
-        }
-        event.preventDefault()
-        void navigator.clipboard.writeText(JSON.stringify(payload))
+        // only claim ⌘C when we actually copied — else the browser's own copy
+        // (e.g. selected chat text) must proceed
+        if (copyCards()) event.preventDefault()
       } else {
         event.preventDefault()
-        void (async () => {
-          let text: string
-          try {
-            text = await navigator.clipboard.readText()
-          } catch {
-            return // clipboard read denied — nothing to paste
-          }
-          if (!text.trim()) return
-          let payload: ClipPayload | null = null
-          try {
-            const parsed = JSON.parse(text) as ClipPayload
-            if (parsed && parsed.canvai === 1 && Array.isArray(parsed.cards) && parsed.cards.length > 0) {
-              payload = parsed
-            }
-          } catch {
-            // not JSON — treated as plain text below
-          }
-          try {
-            if (payload) {
-              const OFFSET = 32
-              const batch = payload.cards.map((c) =>
-                c.type === 'file' && c.file
-                  ? ({
-                      kind: 'add_file_node',
-                      x: c.x + OFFSET,
-                      y: c.y + OFFSET,
-                      file: c.file,
-                      width: c.width,
-                      height: c.height,
-                    } as Mutation)
-                  : ({
-                      kind: 'add_text_node',
-                      x: c.x + OFFSET,
-                      y: c.y + OFFSET,
-                      text: c.type === 'link' && c.url ? c.url : (c.text ?? ''),
-                      width: c.width,
-                      height: c.height,
-                    } as Mutation),
-              )
-              const result = await api.mutate(path, batch)
-              const newIds = result.summary
-                .filter((line) => line.startsWith('added '))
-                .map((line) => line.slice('added '.length))
-              const idMap = new Map(payload.cards.map((c, i) => [c.id, newIds[i]]))
-              const follow: Mutation[] = []
-              payload.cards.forEach((c, i) => {
-                const id = newIds[i]
-                if (id && c.color) follow.push({ kind: 'set_color', id, color: c.color })
-              })
-              for (const e of payload.edges ?? []) {
-                const from = idMap.get(e.from)
-                const to = idMap.get(e.to)
-                if (from && to) {
-                  follow.push({
-                    kind: 'add_edge',
-                    from,
-                    to,
-                    fromSide: e.fromSide,
-                    toSide: e.toSide,
-                    label: e.label,
-                  })
-                }
-              }
-              if (follow.length > 0) await api.mutate(path, follow)
-            } else {
-              // plain text becomes a card at the viewport centre
-              const p = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
-              await api.mutate(path, [{ kind: 'add_text_node', x: p.x - 150, y: p.y - 50, text }])
-            }
-            await load()
-          } catch (e) {
-            setError(e instanceof Error ? e.message : String(e))
-          }
-        })()
+        pasteClipboard()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [path, load, screenToFlowPosition])
+  }, [copyCards, pasteClipboard])
 
   // rail draw tool: one stroke on the canvas becomes a rail — direction locks
   // to whichever axis dominates, slot count follows the stroke length
@@ -988,11 +974,27 @@ function BoardInner({ path, changeSignal }: Props) {
   // force-select on click — some iOS tap sequences (e.g. first tap after
   // the keyboard dismisses) deliver the click without React Flow
   // registering selection, and the toolbar never appears
+  // touch multi-select: the toolbar's ☑ arms this mode, then every tap
+  // toggles a card in/out of the selection (keyboard modifiers don't exist
+  // on touch). Cleared automatically when the selection empties (pane tap).
+  const [multiMode, setMultiMode] = useState(false)
+  useEffect(() => {
+    if (multiMode && selection.nodes.length === 0) setMultiMode(false)
+  }, [multiMode, selection.nodes.length])
+
   const onNodeClick = useCallback(
     (event: ReactMouseEvent, node: FlowNode) => {
       // shift/cmd-click is a multi-select gesture — forcing single selection
       // here was clobbering React Flow's own multi-select handling
       if (event.shiftKey || event.metaKey || event.ctrlKey) return
+      if (multiMode) {
+        setNodes((ns) => ns.map((n) => (n.id === node.id ? { ...n, selected: !n.selected } : n)))
+        setSelection((prev) => {
+          const has = prev.nodes.includes(node.id)
+          return { nodes: has ? prev.nodes.filter((i) => i !== node.id) : [...prev.nodes, node.id], edges: [] }
+        })
+        return
+      }
       setNodes((ns) =>
         ns.map((n) =>
           n.id === node.id ? (n.selected ? n : { ...n, selected: true }) : n.selected ? { ...n, selected: false } : n,
@@ -1004,7 +1006,59 @@ function BoardInner({ path, changeSignal }: Props) {
           : { nodes: [node.id], edges: [] },
       )
     },
-    [setNodes],
+    [setNodes, multiMode],
+  )
+
+  // ── context menu (fine pointers): right-click is the mouse analog of the
+  // touch long-press — same actions the touch toolbar offers, at the cursor.
+  // Suppressed for coarse primary pointers (long-press → toolbar covers it,
+  // and iOS synthesizes contextmenu events from long-presses).
+  const [ctxMenu, setCtxMenu] = useState<null | { x: number; y: number; kind: 'node' | 'edge' | 'pane'; id?: string }>(
+    null,
+  )
+  useEffect(() => {
+    if (!ctxMenu) return
+    const close = (event: PointerEvent) => {
+      if ((event.target as HTMLElement).closest?.('.ps-ctxmenu')) return
+      setCtxMenu(null)
+    }
+    const onEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setCtxMenu(null)
+    }
+    window.addEventListener('pointerdown', close, { capture: true })
+    window.addEventListener('keydown', onEsc)
+    return () => {
+      window.removeEventListener('pointerdown', close, { capture: true })
+      window.removeEventListener('keydown', onEsc)
+    }
+  }, [ctxMenu])
+
+  const onNodeContextMenu = useCallback(
+    (event: ReactMouseEvent, node: FlowNode) => {
+      event.preventDefault()
+      if (coarse || node.type === 'railJoint') return
+      // select the node the menu is about — the actions read the selection
+      setNodes((ns) => ns.map((n) => (n.id === node.id ? { ...n, selected: true } : { ...n, selected: false })))
+      setSelection({ nodes: [node.id], edges: [] })
+      setCtxMenu({ x: event.clientX, y: event.clientY, kind: 'node', id: node.id })
+    },
+    [coarse, setNodes],
+  )
+  const onEdgeContextMenu = useCallback(
+    (event: ReactMouseEvent, edge: FlowEdge) => {
+      event.preventDefault()
+      if (coarse) return
+      setCtxMenu({ x: event.clientX, y: event.clientY, kind: 'edge', id: edge.id })
+    },
+    [coarse],
+  )
+  const onPaneContextMenu = useCallback(
+    (event: ReactMouseEvent | MouseEvent) => {
+      event.preventDefault()
+      if (coarse) return
+      setCtxMenu({ x: event.clientX, y: event.clientY, kind: 'pane' })
+    },
+    [coarse],
   )
 
   const selNode =
@@ -1059,6 +1113,9 @@ function BoardInner({ path, changeSignal }: Props) {
             onEdgeDoubleClick={onEdgeDoubleClick}
             onSelectionChange={onSelectionChange}
             onNodeClick={onNodeClick}
+            onNodeContextMenu={onNodeContextMenu}
+            onEdgeContextMenu={onEdgeContextMenu}
+            onPaneContextMenu={onPaneContextMenu}
             // touch: no keyboard delete — the toolbar 🗑 (with confirm) is
             // the delete path; a lingering selection + Backspace was a trap
             deleteKeyCode={coarse ? null : ['Backspace', 'Delete']}
@@ -1091,10 +1148,15 @@ function BoardInner({ path, changeSignal }: Props) {
       <button
         className={`ps-addrail${railDraw ? ' is-active' : ''}`}
         onClick={() => setRailDraw((v) => !v)}
-        title={t('rail.hint')}
+        title={coarse ? t('rail.hint.touch') : t('rail.hint')}
       >
         ⇥ {t('rail.add')}
       </button>
+      {coarse && (
+        <button className="ps-paste" onClick={() => pasteClipboard()} title={t('toolbar.paste')}>
+          📋
+        </button>
+      )}
       {railDraw && (
         <div
           className="ps-raildraw"
@@ -1107,7 +1169,7 @@ function BoardInner({ path, changeSignal }: Props) {
             setRailDraw(false)
           }}
         >
-          <div className="ps-raildraw-hint">{t('rail.hint')}</div>
+          <div className="ps-raildraw-hint">{coarse ? t('rail.hint.touch') : t('rail.hint')}</div>
           {railPreview &&
             (() => {
               // truthful preview: show the slots the release will actually create
@@ -1153,9 +1215,9 @@ function BoardInner({ path, changeSignal }: Props) {
             })()}
         </div>
       )}
-      {coarse && (selNode || selEdge) && (
+      {coarse && (selNode || selEdge || selection.nodes.length > 1) && (
         <div className="ps-toolbar">
-          {selNode && colorMode ? (
+          {colorMode && (selNode || selection.nodes.length > 1) ? (
             <>
               <button onClick={() => setColorMode(false)} aria-label="back">
                 ←
@@ -1165,25 +1227,79 @@ function BoardInner({ path, changeSignal }: Props) {
                   key={key}
                   className="ps-colordot"
                   style={{ background: hex }}
-                  onClick={() => mutate([{ kind: 'set_color', id: selNode.id, color: key }])}
+                  onClick={() =>
+                    mutate(
+                      (selNode ? [selNode.id] : selection.nodes).map(
+                        (id) => ({ kind: 'set_color', id, color: key }) as Mutation,
+                      ),
+                    )
+                  }
                   aria-label={`color ${key}`}
                 />
               ))}
               <button
                 className="ps-colordot ps-colordot-none"
-                onClick={() => mutate([{ kind: 'set_color', id: selNode.id, color: '' }])}
+                onClick={() =>
+                  mutate(
+                    (selNode ? [selNode.id] : selection.nodes).map(
+                      (id) => ({ kind: 'set_color', id, color: '' }) as Mutation,
+                    ),
+                  )
+                }
                 aria-label="clear color"
               >
                 ⊘
               </button>
             </>
+          ) : selection.nodes.length > 1 ? (
+            <>
+              <button onClick={() => copyCards()}>⧉ {t('toolbar.copy')}</button>
+              <button onClick={() => setColorMode(true)} aria-label="cards color">
+                🎨
+              </button>
+              <button
+                className="ps-toolbar-danger"
+                onClick={() => {
+                  if (!confirmDelete) {
+                    setConfirmDelete(true)
+                    window.setTimeout(() => setConfirmDelete(false), 3000)
+                    return
+                  }
+                  mutate(selection.nodes.map((id) => ({ kind: 'delete_node', id }) as Mutation))
+                }}
+              >
+                {confirmDelete ? `❗${t('toolbar.delete.confirm')}` : `🗑 ${selection.nodes.length}`}
+              </button>
+              <button
+                onClick={() => {
+                  setMultiMode(false)
+                  setNodes((ns) => ns.map((n) => (n.selected ? { ...n, selected: false } : n)))
+                  setSelection({ nodes: [], edges: [] })
+                }}
+                aria-label="exit multi-select"
+              >
+                ☒
+              </button>
+            </>
           ) : selNode ? (
             <>
-              {(selNode.type === 'text' || selNode.type === 'group') && (
+              {(selNode.type === 'text' || selNode.type === 'group' || selNode.type === 'railGroup') && (
                 <button onClick={() => requestEdit(selNode.id)}>✏️ {t('toolbar.edit')}</button>
               )}
               <button onClick={() => setColorMode(true)} aria-label="card color">
                 🎨
+              </button>
+              {selNode.type !== 'railGroup' && selNode.type !== 'group' && (
+                <button onClick={() => copyCards([selNode.id])} aria-label="copy card">
+                  ⧉
+                </button>
+              )}
+              <button
+                className={multiMode ? 'is-active' : undefined}
+                onClick={() => setMultiMode((v) => !v)}
+                aria-label="multi-select mode"
+              >
+                ☑ {t('toolbar.multi')}
               </button>
               <button
                 onClick={() =>
@@ -1221,6 +1337,136 @@ function BoardInner({ path, changeSignal }: Props) {
           ) : null}
         </div>
       )}
+      {ctxMenu &&
+        (() => {
+          const menuNode = ctxMenu.kind === 'node' ? nodes.find((n) => n.id === ctxMenu.id) : undefined
+          const menuEdge = ctxMenu.kind === 'edge' ? edges.find((e) => e.id === ctxMenu.id) : undefined
+          const close = () => setCtxMenu(null)
+          const isCard = menuNode && (menuNode.type === 'text' || menuNode.type === 'file' || menuNode.type === 'link')
+          return (
+            <div
+              className="ps-ctxmenu"
+              style={{
+                left: Math.min(ctxMenu.x, window.innerWidth - 210),
+                top: Math.min(ctxMenu.y, window.innerHeight - 260),
+              }}
+            >
+              {menuNode && (
+                <>
+                  {(menuNode.type === 'text' || menuNode.type === 'group' || menuNode.type === 'railGroup') && (
+                    <button
+                      onClick={() => {
+                        requestEdit(menuNode.id)
+                        close()
+                      }}
+                    >
+                      ✏️ {t('toolbar.edit')}
+                    </button>
+                  )}
+                  <div className="ps-ctxmenu-colors">
+                    {Object.entries(CANVAS_COLORS).map(([key, hex]) => (
+                      <button
+                        key={key}
+                        className="ps-colordot"
+                        style={{ background: hex }}
+                        onClick={() => {
+                          mutate([{ kind: 'set_color', id: menuNode.id, color: key }])
+                          close()
+                        }}
+                        aria-label={`color ${key}`}
+                      />
+                    ))}
+                    <button
+                      className="ps-colordot ps-colordot-none"
+                      onClick={() => {
+                        mutate([{ kind: 'set_color', id: menuNode.id, color: '' }])
+                        close()
+                      }}
+                      aria-label="clear color"
+                    >
+                      ⊘
+                    </button>
+                  </div>
+                  {isCard && (
+                    <button
+                      onClick={() => {
+                        copyCards([menuNode.id])
+                        close()
+                      }}
+                    >
+                      ⧉ {t('toolbar.copy')}
+                    </button>
+                  )}
+                  {isCard && (
+                    <button
+                      onClick={() => {
+                        mutate([
+                          { kind: 'set_discuss', id: menuNode.id, discuss: menuNode.data.node.discuss === false },
+                        ])
+                        close()
+                      }}
+                    >
+                      ⏸{' '}
+                      {menuNode.data.node.discuss === false
+                        ? t('toolbar.discuss.rejoin')
+                        : t('toolbar.discuss.leave')}
+                    </button>
+                  )}
+                  <button
+                    className="ps-toolbar-danger"
+                    onClick={() => {
+                      mutate([{ kind: 'delete_node', id: menuNode.id }])
+                      close()
+                    }}
+                  >
+                    🗑 {t('toolbar.delete')}
+                  </button>
+                </>
+              )}
+              {menuEdge && (
+                <>
+                  <button
+                    onClick={() => {
+                      reverseEdge(menuEdge)
+                      close()
+                    }}
+                  >
+                    ⇄ {t('toolbar.reverse')}
+                  </button>
+                  <button
+                    className="ps-toolbar-danger"
+                    onClick={() => {
+                      mutate([{ kind: 'delete_edge', id: menuEdge.id }])
+                      close()
+                    }}
+                  >
+                    🗑 {t('toolbar.delete')}
+                  </button>
+                </>
+              )}
+              {ctxMenu.kind === 'pane' && (
+                <>
+                  <button
+                    onClick={() => {
+                      void addCardAt({ x: ctxMenu.x, y: ctxMenu.y })
+                      close()
+                    }}
+                  >
+                    {t('card.add')}
+                  </button>
+                  <button
+                    onClick={() => {
+                      pasteClipboard(screenToFlowPosition({ x: ctxMenu.x, y: ctxMenu.y }))
+                      close()
+                    }}
+                  >
+                    📋 {t('toolbar.paste')}
+                  </button>
+                </>
+              )}
+            </div>
+          )
+        })()}
       {error && <div className="ps-error">{error}</div>}
       {debugTouch && (
         <pre className="ps-debug">
