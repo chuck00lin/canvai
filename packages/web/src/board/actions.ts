@@ -8,8 +8,13 @@ export interface BoardActionsValue {
   commitGeometry: (id: string, geometry: { x?: number; y?: number; width?: number; height?: number }) => void
   /** while any card is being edited, board reloads are deferred (a reload would blur the editor mid-typing) */
   notifyEditing: (active: boolean) => void
-  /** cancelling the editor of a still-empty card removes it — an empty card is invisible junk */
-  deleteNode: (id: string) => void
+  /**
+   * closing the editor of a still-empty card discards it ONLY when the card
+   * was just created by this session's create-then-edit flow — an existing
+   * empty card someone tapped open must survive (it may be a deliberate
+   * placeholder; deleting it read as data loss)
+   */
+  discardEmpty: (id: string) => void
 }
 
 export const BoardActions = createContext<BoardActionsValue>({
@@ -17,7 +22,7 @@ export const BoardActions = createContext<BoardActionsValue>({
   commitLabel: () => {},
   commitGeometry: () => {},
   notifyEditing: () => {},
-  deleteNode: () => {},
+  discardEmpty: () => {},
 })
 
 /**

@@ -128,7 +128,7 @@ function tintStyle(color?: string): CSSProperties | undefined {
 }
 
 function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
-  const { commitText, commitGeometry, notifyEditing, deleteNode } = useContext(BoardActions)
+  const { commitText, commitGeometry, notifyEditing, discardEmpty } = useContext(BoardActions)
   const t = useT()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -146,13 +146,13 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
     if (!editing) return
     setEditing(false)
     notifyEditing(false)
-    // a card that stays empty after editing is invisible junk (the
-    // create-then-edit flow starts from '') — remove it instead. EXCEPT while
+    // a card that stays empty after editing is discarded ONLY if it was just
+    // created (create-then-edit flow) — CanvasBoard tracks that. EXCEPT while
     // an image attach is in flight: the picker blurs the editor, and deleting
     // the still-empty card here would strand the upload
     const result = save ? draft : (node.text ?? '')
     if ((node.text ?? '') === '' && result.trim() === '') {
-      if (!attaching.current) deleteNode(id)
+      if (!attaching.current) discardEmpty(id)
       return
     }
     if (save && draft !== (node.text ?? '')) commitText(id, draft)

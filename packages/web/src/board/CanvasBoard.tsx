@@ -415,9 +415,17 @@ function BoardInner({ path, changeSignal }: Props) {
 
   const byId = () => new Map(nodesRef.current.map((n) => [n.id, n]))
 
+  // cards born from THIS session's create-then-edit flow: only these may be
+  // auto-discarded when their editor closes still empty — a pre-existing
+  // empty card someone tapped open is a deliberate placeholder, not junk
+  const freshCards = useRef(new Set<string>())
+
   const actions = useMemo<BoardActionsValue>(
     () => ({
-      commitText: (id, text) => mutate([{ kind: 'set_text', id, text }]),
+      commitText: (id, text) => {
+        freshCards.current.delete(id) // it has content now — it's a real card
+        mutate([{ kind: 'set_text', id, text }])
+      },
       commitLabel: (id, label) => mutate([{ kind: 'set_label', id, label }]),
       commitGeometry: (id, geometry) => {
         const map = byId()
@@ -454,7 +462,9 @@ function BoardInner({ path, changeSignal }: Props) {
           void load()
         }
       },
-      deleteNode: (id) => mutate([{ kind: 'delete_node', id }]),
+      discardEmpty: (id) => {
+        if (freshCards.current.delete(id)) mutate([{ kind: 'delete_node', id }])
+      },
     }),
     [mutate, load],
   )
@@ -688,6 +698,7 @@ function BoardInner({ path, changeSignal }: Props) {
         ])
         const added = result.summary.find((line) => line.startsWith('added '))?.slice('added '.length)
         if (!added) return
+        freshCards.current.add(added)
         await load()
         requestEdit(added)
       } catch (e) {
@@ -746,6 +757,154 @@ function BoardInner({ path, changeSignal }: Props) {
     },
     [],
   )
+
+  // ── clipboard: ⌘/Ctrl+C copies the selected cards (plus the edges between
+  // them) as JSON; ⌘/Ctrl+V pastes them slightly offset — on this board or any
+  // other. Plain text from anywhere pastes as a new card.
+  const selectionRef = useRef(selection)
+  selectionRef.current = selection
+  useEffect(() => {
+    interface ClipCard {
+      id: string
+      type: string
+      text?: string
+      file?: string
+      url?: string
+      color?: string
+      x: number
+      y: number
+      width: number
+      height: number
+    }
+    interface ClipPayload {
+      canvai: number
+      cards: ClipCard[]
+      edges?: { from: string; to: string; fromSide?: string; toSide?: string; label?: string }[]
+    }
+    const inEditor = (target: EventTarget | null) =>
+      !!(target as HTMLElement | null)?.closest?.('textarea, input, [contenteditable]')
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || (event.key !== 'c' && event.key !== 'v')) return
+      if (inEditor(event.target)) return // never hijack copy/paste while typing
+      if (event.key === 'c') {
+        const ids = new Set(selectionRef.current.nodes)
+        if (ids.size === 0) return
+        const map = byId()
+        const cards = [...ids]
+          .map((id) => map.get(id))
+          .filter((n): n is PSFlowNode => !!n && (n.type === 'text' || n.type === 'file' || n.type === 'link'))
+        if (cards.length === 0) return
+        const payload: ClipPayload = {
+          canvai: 1,
+          cards: cards.map((n) => {
+            const abs = absolutePosition(n, map)
+            const node = n.data.node
+            return {
+              id: n.id,
+              type: node.type,
+              text: node.text,
+              file: node.file,
+              url: node.url,
+              color: node.color,
+              x: abs.x,
+              y: abs.y,
+              width: node.width,
+              height: node.height,
+            }
+          }),
+          edges: edgesRef.current
+            .filter((e) => ids.has(e.source) && ids.has(e.target))
+            .map((e) => ({
+              from: e.source,
+              to: e.target,
+              fromSide: (e.sourceHandle as string | null) ?? undefined,
+              toSide: (e.targetHandle as string | null) ?? undefined,
+              label: typeof e.label === 'string' ? e.label : undefined,
+            })),
+        }
+        event.preventDefault()
+        void navigator.clipboard.writeText(JSON.stringify(payload))
+      } else {
+        event.preventDefault()
+        void (async () => {
+          let text: string
+          try {
+            text = await navigator.clipboard.readText()
+          } catch {
+            return // clipboard read denied — nothing to paste
+          }
+          if (!text.trim()) return
+          let payload: ClipPayload | null = null
+          try {
+            const parsed = JSON.parse(text) as ClipPayload
+            if (parsed && parsed.canvai === 1 && Array.isArray(parsed.cards) && parsed.cards.length > 0) {
+              payload = parsed
+            }
+          } catch {
+            // not JSON — treated as plain text below
+          }
+          try {
+            if (payload) {
+              const OFFSET = 32
+              const batch = payload.cards.map((c) =>
+                c.type === 'file' && c.file
+                  ? ({
+                      kind: 'add_file_node',
+                      x: c.x + OFFSET,
+                      y: c.y + OFFSET,
+                      file: c.file,
+                      width: c.width,
+                      height: c.height,
+                    } as Mutation)
+                  : ({
+                      kind: 'add_text_node',
+                      x: c.x + OFFSET,
+                      y: c.y + OFFSET,
+                      text: c.type === 'link' && c.url ? c.url : (c.text ?? ''),
+                      width: c.width,
+                      height: c.height,
+                    } as Mutation),
+              )
+              const result = await api.mutate(path, batch)
+              const newIds = result.summary
+                .filter((line) => line.startsWith('added '))
+                .map((line) => line.slice('added '.length))
+              const idMap = new Map(payload.cards.map((c, i) => [c.id, newIds[i]]))
+              const follow: Mutation[] = []
+              payload.cards.forEach((c, i) => {
+                const id = newIds[i]
+                if (id && c.color) follow.push({ kind: 'set_color', id, color: c.color })
+              })
+              for (const e of payload.edges ?? []) {
+                const from = idMap.get(e.from)
+                const to = idMap.get(e.to)
+                if (from && to) {
+                  follow.push({
+                    kind: 'add_edge',
+                    from,
+                    to,
+                    fromSide: e.fromSide,
+                    toSide: e.toSide,
+                    label: e.label,
+                  })
+                }
+              }
+              if (follow.length > 0) await api.mutate(path, follow)
+            } else {
+              // plain text becomes a card at the viewport centre
+              const p = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
+              await api.mutate(path, [{ kind: 'add_text_node', x: p.x - 150, y: p.y - 50, text }])
+            }
+            await load()
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e))
+          }
+        })()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [path, load, screenToFlowPosition])
 
   // rail draw tool: one stroke on the canvas becomes a rail — direction locks
   // to whichever axis dominates, slot count follows the stroke length
@@ -830,7 +989,10 @@ function BoardInner({ path, changeSignal }: Props) {
   // the keyboard dismisses) deliver the click without React Flow
   // registering selection, and the toolbar never appears
   const onNodeClick = useCallback(
-    (_event: ReactMouseEvent, node: FlowNode) => {
+    (event: ReactMouseEvent, node: FlowNode) => {
+      // shift/cmd-click is a multi-select gesture — forcing single selection
+      // here was clobbering React Flow's own multi-select handling
+      if (event.shiftKey || event.metaKey || event.ctrlKey) return
       setNodes((ns) =>
         ns.map((n) =>
           n.id === node.id ? (n.selected ? n : { ...n, selected: true }) : n.selected ? { ...n, selected: false } : n,
