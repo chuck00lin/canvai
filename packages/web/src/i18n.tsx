@@ -71,6 +71,8 @@ const STRINGS = {
   'board.activeTitle': { en: 'active board: the shared focus for humans and agents', zh: '啟用中的板：人與 agent 共同的焦點' },
   'board.new': { en: '＋ new board', zh: '＋ 新板' },
   'board.newIn': { en: 'new board in this folder', zh: '在這個資料夾新增板' },
+  'board.rename': { en: 'rename', zh: '改名' },
+  'board.deleteConfirm': { en: 'Delete board "{name}"? (recoverable from git history)', zh: '刪除板「{name}」？（可從 git 歷史還原）' },
   'sidebar.repoTitle': {
     en: 'boards are .canvas files inside this repo — open it in your editor or Obsidian and they are right there',
     zh: '板＝這個 repo 裡的 .canvas 檔案——用編輯器或 Obsidian 打開 repo 就在原處',

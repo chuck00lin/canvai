@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rename, rm, rmdir, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import {
@@ -91,4 +91,40 @@ export async function createBoard(root: string, rel: string): Promise<void> {
   }
   await mkdir(path.dirname(abs), { recursive: true })
   await writeBoard(root, rel, { nodes: [], edges: [] }, DEFAULT_STYLE)
+}
+
+export async function deleteBoard(root: string, rel: string): Promise<void> {
+  const abs = boardAbsPath(root, rel)
+  await rm(abs)
+  await pruneEmptyDirs(root, path.dirname(abs))
+}
+
+/** Rename or move a board (both are just a path change). Fails if the target exists. */
+export async function renameBoard(root: string, from: string, to: string): Promise<void> {
+  const fromAbs = boardAbsPath(root, from)
+  const toAbs = boardAbsPath(root, to)
+  if (fromAbs === toAbs) return
+  try {
+    await stat(toAbs)
+    throw new Error(`board already exists: "${to}"`)
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+  }
+  await mkdir(path.dirname(toAbs), { recursive: true })
+  await rename(fromAbs, toAbs)
+  await pruneEmptyDirs(root, path.dirname(fromAbs))
+}
+
+/** Remove now-empty folders left by a delete/move, up to (not including) the root. */
+async function pruneEmptyDirs(root: string, dir: string): Promise<void> {
+  const rootAbs = path.resolve(root)
+  let cursor = dir
+  while (cursor !== rootAbs && cursor.startsWith(rootAbs + path.sep)) {
+    try {
+      await rmdir(cursor) // fails (ENOTEMPTY) if anything remains — stop there
+    } catch {
+      return
+    }
+    cursor = path.dirname(cursor)
+  }
 }

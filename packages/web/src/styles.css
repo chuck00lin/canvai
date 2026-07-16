@@ -1544,3 +1544,84 @@ body {
   font-weight: 400;
   font-size: 11.5px;
 }
+
+/* board row: rename / delete / drag-move */
+.ps-boardrow {
+  position: relative;
+  overflow: hidden;
+}
+.ps-boarditem {
+  transition: transform 0.12s ease;
+  background: var(--bg);
+}
+.ps-swipe-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+}
+.ps-swipe-actions button {
+  border: none;
+  color: #fff;
+  font-size: 12px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+.ps-swipe-rename {
+  background: #6a7079;
+}
+.ps-swipe-delete {
+  background: #e93147;
+}
+.ps-boardrow-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ps-row-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+}
+@media (hover: hover) {
+  .ps-boarditem:hover .ps-row-actions {
+    opacity: 1;
+  }
+}
+.ps-row-actions button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  color: var(--muted);
+}
+.ps-row-actions button:hover {
+  background: rgba(122, 129, 148, 0.16);
+}
+.ps-row-actions .ps-row-delete:hover {
+  background: rgba(233, 49, 71, 0.14);
+}
+.ps-rename-input {
+  width: 100%;
+  font: inherit;
+  font-weight: 600;
+  padding: 2px 4px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--ink);
+}
+.ps-folder.is-droptarget,
+.ps-tree.is-droptarget {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+  border-radius: 6px;
+  background: rgba(8, 185, 78, 0.08);
+}
+.ps-tree {
+  min-height: 40px;
+}

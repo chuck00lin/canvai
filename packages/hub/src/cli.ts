@@ -29,6 +29,8 @@ options:
                    long-running session listening with its own context
   --handoff-timeout <s>  kill a spawned agent turn after this many seconds
                    (default: 300)
+  --autocommit     commit every board change to the root's git repo
+                   (run 'git init' in the root first)
 
 Both modes coordinate through files (.canvas, .canvai/) — run them
 side by side, or either one alone.`)
@@ -66,7 +68,8 @@ if (args[0] === 'serve') {
   const handoffMode = flag('--handoff-mode') === 'signal' ? ('signal' as const) : undefined
   const handoffTimeout = flag('--handoff-timeout')
   const handoffTimeoutMs = handoffTimeout ? Number(handoffTimeout) * 1000 : undefined
-  const running = await startServe(root, { port, host, token, agentCmd, handoffMode, handoffTimeoutMs })
+  const autoCommit = args.includes('--autocommit')
+  const running = await startServe(root, { port, host, token, agentCmd, handoffMode, handoffTimeoutMs, autoCommit })
   console.error(`canvai hub: serving ${root}`)
   const suffix = token ? `/?token=${encodeURIComponent(token)}` : '/'
   for (const address of host === '0.0.0.0' ? reachableAddresses() : [host]) {

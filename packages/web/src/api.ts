@@ -112,6 +112,18 @@ export const api = {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ board }),
     }).then((r) => json<{ ok: boolean }>(r)),
+  deleteBoard: (path: string) =>
+    request('/api/boards', {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path }),
+    }).then((r) => json<{ ok: boolean }>(r)),
+  renameBoard: (from: string, to: string) =>
+    request('/api/boards/rename', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ from, to }),
+    }).then((r) => json<{ ok: boolean }>(r)),
   mutate: (board: string, changes: Mutation[]) =>
     request('/api/mutate', {
       method: 'POST',

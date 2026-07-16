@@ -5,7 +5,7 @@ import { CanvasBoard } from './board/CanvasBoard'
 import { ChatPanel } from './ChatPanel'
 import { Settings } from './Settings'
 import { useT } from './i18n'
-import { PHONE_QUERY, useMediaQuery } from './useMediaQuery'
+import { COARSE_QUERY, PHONE_QUERY, useMediaQuery } from './useMediaQuery'
 
 export function App() {
   const t = useT()
@@ -25,6 +25,9 @@ export function App() {
   const [offline, setOffline] = useState(false)
   const [wsUp, setWsUp] = useState(false)
   const phone = useMediaQuery(PHONE_QUERY)
+  // pointer type drives sidebar row gestures (swipe vs hover) — iPad is a wide
+  // viewport but coarse, so it must get the touch path, not the mouse path
+  const coarse = useMediaQuery(COARSE_QUERY)
   // on phones the sidebar and chat are overlays; the canvas owns the screen
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
@@ -138,6 +141,27 @@ export function App() {
     }
   }
 
+  const deleteBoard = async (boardPath: string) => {
+    if (!window.confirm(t('board.deleteConfirm').replace('{name}', boardPath))) return
+    try {
+      await api.deleteBoard(boardPath)
+      await refreshBoards()
+      setCurrent((existing) => (existing === boardPath ? null : existing))
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const renameBoard = async (from: string, to: string) => {
+    try {
+      await api.renameBoard(from, to)
+      await refreshBoards()
+      setCurrent((existing) => (existing === from ? to : existing))
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   const openChat = () => {
     setChatOpen(true)
     setChatUnread(false)
@@ -204,11 +228,14 @@ export function App() {
             boards={boards}
             active={active}
             current={current}
+            coarse={coarse}
             onOpen={(path) => {
               setCurrent(path)
               setDrawerOpen(false)
             }}
             onNewBoard={(folder) => void newBoard(folder)}
+            onDelete={(path) => void deleteBoard(path)}
+            onRename={(from, to) => void renameBoard(from, to)}
           />
           {boards.length === 0 && !offline && <div className="ps-empty">{t('board.none')}</div>}
           {offline && <div className="ps-empty">{t('board.unreachable')}</div>}

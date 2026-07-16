@@ -4,7 +4,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer, WebSocket } from 'ws'
 import { diffBoards, isEmptyDiff, type CanvasData } from '@canvai/canvas-kit'
-import { createBoard, listBoards, readBoard, readBoardRaw, writeBoard } from './boards.ts'
+import { createBoard, deleteBoard, listBoards, readBoard, readBoardRaw, renameBoard, writeBoard } from './boards.ts'
+import { createAutoCommit } from './git.ts'
 import { addPinned, getActiveBoard, getPinned, removePinned, setActiveBoard } from './state.ts'
 import { appendEvent, readEventsSince, recentAgentWrite } from './events.ts'
 import { appendChat, readChatSince } from './chat.ts'
@@ -38,6 +39,8 @@ export interface ServeOptions {
    */
   handoffMode?: 'spawn' | 'signal'
   webDist?: string
+  /** commit every board change to the root's git repo (needs `git init` in root) */
+  autoCommit?: boolean
 }
 
 export interface RunningServer {
@@ -88,6 +91,7 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
   const selfWrites = new Map<string, number>()
   const markSelfWrite = (board: string) => selfWrites.set(board, Date.now())
   const wasSelfWrite = (board: string) => Date.now() - (selfWrites.get(board) ?? 0) <= SELF_WRITE_WINDOW_MS
+  const git = await createAutoCommit(root, options.autoCommit ?? false)
 
   for (const board of await listBoards(root)) {
     try {
@@ -225,8 +229,43 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
       await createBoard(root, body.path)
       snapshots.set(body.path, (await readBoard(root, body.path)).data)
       markSelfWrite(body.path)
+      git.touch(`create ${body.path}`)
       await appendEvent(root, { origin: 'human', kind: 'board_created', board: body.path })
       broadcast({ type: 'boards_changed' })
+      return sendJson(res, 200, { ok: true })
+    }
+    if (pathname === '/api/boards' && req.method === 'DELETE') {
+      const body = (await readJson(req)) as { path?: string }
+      if (!body.path) return sendJson(res, 400, { error: 'missing "path"' })
+      markSelfWrite(body.path)
+      await deleteBoard(root, body.path)
+      snapshots.delete(body.path)
+      await removePinned(root, body.path, [])
+      git.touch(`delete ${body.path}`)
+      await appendEvent(root, { origin: 'human', kind: 'board_deleted', board: body.path })
+      broadcast({ type: 'boards_changed' })
+      return sendJson(res, 200, { ok: true })
+    }
+    if (pathname === '/api/boards/rename' && req.method === 'POST') {
+      const body = (await readJson(req)) as { from?: string; to?: string }
+      if (!body.from || !body.to) return sendJson(res, 400, { error: 'need "from" and "to"' })
+      markSelfWrite(body.from)
+      markSelfWrite(body.to)
+      await renameBoard(root, body.from, body.to)
+      const snap = snapshots.get(body.from)
+      if (snap) snapshots.set(body.to, snap)
+      snapshots.delete(body.from)
+      // move the active pointer and pins with the board
+      if ((await getActiveBoard(root)) === body.from) await setActiveBoard(root, body.to)
+      const pins = await getPinned(root, body.from)
+      if (pins.size > 0) {
+        await addPinned(root, body.to, [...pins])
+        await removePinned(root, body.from, [...pins])
+      }
+      git.touch(`rename ${body.from} → ${body.to}`)
+      await appendEvent(root, { origin: 'human', kind: 'board_renamed', board: body.to, detail: { from: body.from } })
+      broadcast({ type: 'boards_changed' })
+      broadcast({ type: 'active_changed', active: await getActiveBoard(root) })
       return sendJson(res, 200, { ok: true })
     }
     if (pathname === '/api/board' && req.method === 'GET') {
@@ -256,6 +295,7 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
       const outcome = applyMutations(working, body.changes)
       markSelfWrite(body.board)
       await writeBoard(root, body.board, working, style)
+      git.touch(`edit ${body.board}`)
       snapshots.set(body.board, working)
       if (outcome.movedIds.length > 0) await addPinned(root, body.board, outcome.movedIds)
       if (outcome.deletedIds.length > 0) await removePinned(root, body.board, outcome.deletedIds)
@@ -442,6 +482,7 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
     port,
     async close() {
       watcher.close()
+      await git.flush() // don't drop a debounced commit on shutdown
       for (const client of wssClients) client.terminate()
       wss.close()
       await new Promise<void>((resolve, reject) => server.close((e) => (e ? reject(e) : resolve())))
