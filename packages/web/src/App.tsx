@@ -216,23 +216,6 @@ export function App() {
         <button className="ps-newboard" onClick={() => void newBoard()}>
           {t('board.new')}
         </button>
-        <footer className="ps-hint">
-          {phone ? (
-            <>
-              {t('sidebar.hint.select')}
-              <br />
-              {t('sidebar.hint.drag')}
-            </>
-          ) : (
-            <>
-              {t('hint.desktop.1')}
-              <br />
-              {t('hint.desktop.2')}
-              <br />
-              {t('hint.desktop.3')}
-            </>
-          )}
-        </footer>
       </aside>
       <main className="ps-main">
         {current ? (
