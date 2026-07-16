@@ -1474,3 +1474,73 @@ body {
     padding: 12px 18px;
   }
 }
+
+/* ── board file tree: boards are .canvas files in the repo ── */
+.ps-repoline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: help;
+}
+.ps-repoline-icon {
+  font-size: 12px;
+}
+.ps-folder {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+@media (hover: hover) {
+  .ps-folder:hover {
+    background: #eef0f2;
+  }
+  .ps-folder .ps-folder-add {
+    opacity: 0;
+  }
+  .ps-folder:hover .ps-folder-add {
+    opacity: 1;
+  }
+}
+.ps-folder-chevron {
+  width: 14px;
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
+}
+.ps-folder-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ps-folder-add {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 4px;
+  border-radius: 4px;
+  opacity: 0.55;
+}
+.ps-folder-add:hover {
+  color: var(--accent);
+}
+.ps-ext {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 11.5px;
+}

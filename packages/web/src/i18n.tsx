@@ -70,6 +70,11 @@ const STRINGS = {
   'board.active': { en: 'active', zh: '啟用' },
   'board.activeTitle': { en: 'active board: the shared focus for humans and agents', zh: '啟用中的板：人與 agent 共同的焦點' },
   'board.new': { en: '＋ new board', zh: '＋ 新板' },
+  'board.newIn': { en: 'new board in this folder', zh: '在這個資料夾新增板' },
+  'sidebar.repoTitle': {
+    en: 'boards are .canvas files inside this repo — open it in your editor or Obsidian and they are right there',
+    zh: '板＝這個 repo 裡的 .canvas 檔案——用編輯器或 Obsidian 打開 repo 就在原處',
+  },
   'board.none': { en: 'no boards yet', zh: '還沒有板' },
   'board.unreachable': { en: 'hub unreachable — run `npm run serve`', zh: 'hub 連不上 — 執行 `npm run serve`' },
   'board.placeholder': { en: 'create a board to start sketching with your agent', zh: '建一張板，開始跟你的 agent 一起畫' },

@@ -215,7 +215,9 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
 
     if (pathname === '/api/boards' && req.method === 'GET') {
       const [boards, active] = await Promise.all([listBoards(root), getActiveBoard(root)])
-      return sendJson(res, 200, { boards, active: active ?? null })
+      // root basename: the sidebar names the repo the boards live in, so the
+      // file tree reads as "these are files in YOUR repo"
+      return sendJson(res, 200, { boards, active: active ?? null, root: path.basename(root) })
     }
     if (pathname === '/api/boards' && req.method === 'POST') {
       const body = (await readJson(req)) as { path?: string }

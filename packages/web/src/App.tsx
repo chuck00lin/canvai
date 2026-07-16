@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { api, connectHub, type BoardInfo } from './api'
+import { BoardTree } from './BoardTree'
 import { CanvasBoard } from './board/CanvasBoard'
 import { ChatPanel } from './ChatPanel'
 import { Settings } from './Settings'
@@ -10,6 +11,7 @@ export function App() {
   const t = useT()
   const [boards, setBoards] = useState<BoardInfo[]>([])
   const [active, setActive] = useState<string | null>(null)
+  const [rootName, setRootName] = useState('')
   // survive reloads (mobile browsers discard background tabs freely) — don't
   // dump the user back on the active board after every resume
   const [current, setCurrent] = useState<string | null>(() => sessionStorage.getItem('ps-current'))
@@ -66,6 +68,7 @@ export function App() {
       const result = await api.boards()
       setBoards(result.boards)
       setActive(result.active)
+      setRootName(result.root ?? '')
       setOffline(false)
       setCurrent((existing) =>
         existing && result.boards.some((b) => b.path === existing)
@@ -121,8 +124,8 @@ export function App() {
     }, setWsUp)
   }, [refreshBoards])
 
-  const newBoard = async () => {
-    const path = window.prompt('New board path (repo-relative):', 'discuss/topic.canvas')
+  const newBoard = async (folder?: string) => {
+    const path = window.prompt('New board path (repo-relative):', `${folder ?? 'discuss'}/topic.canvas`)
     if (!path) return
     try {
       await api.createBoard(path)
@@ -192,34 +195,21 @@ export function App() {
           {!phone && <Settings />}
         </header>
         <div className="ps-boards">
-          {boards.map((board) => (
-            <div
-              key={board.path}
-              className={`ps-boarditem${board.path === current ? ' is-current' : ''}`}
-              onClick={() => {
-                setCurrent(board.path)
-                setDrawerOpen(false)
-              }}
-            >
-              <div className="ps-boardname">{board.path.replace(/\.canvas$/, '')}</div>
-              <div className="ps-boardmeta">
-                {board.nodes} nodes · {board.edges} edges
-              </div>
-              <label
-                className={`ps-active${board.path === active ? ' is-active' : ''}`}
-                title={t('board.activeTitle')}
-                onClick={(event) => event.stopPropagation()}
-              >
-                <input
-                  type="radio"
-                  name="active-board"
-                  checked={board.path === active}
-                  onChange={() => void api.setActive(board.path)}
-                />
-                {t('board.active')}
-              </label>
+          {rootName && boards.length > 0 && (
+            <div className="ps-repoline" title={t('sidebar.repoTitle')}>
+              <span className="ps-repoline-icon">▣</span> {rootName}
             </div>
-          ))}
+          )}
+          <BoardTree
+            boards={boards}
+            active={active}
+            current={current}
+            onOpen={(path) => {
+              setCurrent(path)
+              setDrawerOpen(false)
+            }}
+            onNewBoard={(folder) => void newBoard(folder)}
+          />
           {boards.length === 0 && !offline && <div className="ps-empty">{t('board.none')}</div>}
           {offline && <div className="ps-empty">{t('board.unreachable')}</div>}
         </div>

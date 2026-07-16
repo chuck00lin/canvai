@@ -94,7 +94,8 @@ async function json<T>(response: Response): Promise<T> {
 }
 
 export const api = {
-  boards: () => request('/api/boards').then((r) => json<{ boards: BoardInfo[]; active: string | null }>(r)),
+  boards: () =>
+    request('/api/boards').then((r) => json<{ boards: BoardInfo[]; active: string | null; root?: string }>(r)),
   board: (path: string) =>
     request(`/api/board?path=${encodeURIComponent(path)}`).then((r) =>
       json<{ path: string; data: CanvasData; pinned: string[] }>(r),
