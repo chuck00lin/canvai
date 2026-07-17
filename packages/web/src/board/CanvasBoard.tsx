@@ -474,8 +474,11 @@ function BoardInner({ path, changeSignal }: Props) {
   // dragstart/dragstop, and committing an unmoved node would PIN it
   const dragStartPos = useRef<Map<string, { x: number; y: number }>>(new Map())
 
-  const onNodeDragStart = useCallback(() => {
+  const onNodeDragStart = useCallback((_event: unknown, node: FlowNode) => {
     dragging.current = true
+    // dragging a just-created card is the human placing it — it's no longer a
+    // pending "new card" that Escape should be able to discard
+    freshCards.current.delete(node.id)
     const map = byId()
     dragStartPos.current = new Map([...map.values()].map((n) => [n.id, absolutePosition(n, map)]))
   }, [])

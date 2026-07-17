@@ -146,13 +146,15 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
     if (!editing) return
     setEditing(false)
     notifyEditing(false)
-    // a card that stays empty after editing is discarded ONLY if it was just
-    // created (create-then-edit flow) — CanvasBoard tracks that. EXCEPT while
-    // an image attach is in flight: the picker blurs the editor, and deleting
-    // the still-empty card here would strand the upload
+    // a just-created card left empty is discarded ONLY on an explicit cancel
+    // (Escape, save=false). A blur — from dragging the card or clicking away —
+    // means the human is keeping it (they placed it), so leave the empty card
+    // be; they can fill or delete it. (CEO 2026-07-16: a freshly double-click
+    // -created card vanished mid-drag because the drag blurred its editor.)
+    // EXCEPT while an image attach is in flight: the picker blurs the editor.
     const result = save ? draft : (node.text ?? '')
     if ((node.text ?? '') === '' && result.trim() === '') {
-      if (!attaching.current) discardEmpty(id)
+      if (!save && !attaching.current) discardEmpty(id)
       return
     }
     if (save && draft !== (node.text ?? '')) commitText(id, draft)
