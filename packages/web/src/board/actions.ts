@@ -36,3 +36,11 @@ export interface EditRequestValue {
 }
 
 export const EditRequest = createContext<EditRequestValue>({ id: '', seq: 0 })
+
+/**
+ * True while a connection drag is in flight (onConnectStart→End). Cards force
+ * all their handles mounted during this window: a hover-revealed handle would
+ * otherwise unmount the instant the drag moves the pointer off the card
+ * (onPointerLeave), aborting the connection. See nodes.tsx useHover / Sides.
+ */
+export const Connecting = createContext(false)

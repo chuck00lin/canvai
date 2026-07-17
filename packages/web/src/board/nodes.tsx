@@ -10,9 +10,9 @@ import {
   type KeyboardEvent,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Handle, NodeResizer, Position, type NodeProps, type NodeTypes } from '@xyflow/react'
+import { Handle, NodeResizer, Position, useUpdateNodeInternals, type NodeProps, type NodeTypes } from '@xyflow/react'
 import { api, compressImage } from '../api'
-import { BoardActions, EditRequest } from './actions'
+import { BoardActions, Connecting, EditRequest } from './actions'
 import { colorOf, RAIL_MARK, type PSFlowNode } from './mapping'
 import { Markdown } from '../markdown'
 import { useLongPress } from './useLongPress'
@@ -90,27 +90,67 @@ const SIDES = [
   ['left', Position.Left],
 ] as const
 
-function Sides() {
-  // targets first (underneath, drop-only), sources on top: a drag that starts
-  // on a node always starts from a SOURCE handle, so the arrow points the way
-  // you dragged — edge direction is semantics for the agent.
+/**
+ * Node connection handles. targets first (underneath, drop-only), sources on
+ * top: a drag that starts on a node always starts from a SOURCE handle, so the
+ * arrow points the way you dragged — edge direction is semantics for the agent.
+ *
+ * Lazy mount (perf): 8 handles/card is a big chunk of DOM on a large board.
+ * SOURCE handles (4) stay ALWAYS mounted — a new connection must be able to
+ * START from any side at any time, and React Flow will not reliably begin a
+ * connection from a handle that only just mounted (dynamic-handle limitation).
+ * TARGET handles (4) are lazy: needed only as drop points, and (a) the
+ * `connecting` context mounts every card's full set during a drag so drops
+ * snap, (b) the drop-anywhere fallback (onConnectEnd) hit-tests card rects
+ * anyway. So at rest a card carries 4 handles, not 8 — plus any a live edge
+ * anchors to (`used`, kept mounted so edges don't jump).
+ */
+function Sides({ used, interactive }: { used?: string[]; interactive?: boolean }) {
+  // sources always; targets on demand (interactive = hover/select/connecting)
+  const show = (key: string) => key.startsWith('s-') || interactive || used?.includes(key)
   return (
     <>
-      {SIDES.map(([id, position]) => (
-        <Handle
-          key={`t-${id}`}
-          id={id}
-          type="target"
-          position={position}
-          className="ps-handle"
-          isConnectableStart={false}
-        />
-      ))}
-      {SIDES.map(([id, position]) => (
-        <Handle key={`s-${id}`} id={id} type="source" position={position} className="ps-handle" />
-      ))}
+      {SIDES.map(([id, position]) =>
+        show(`t-${id}`) ? (
+          <Handle
+            key={`t-${id}`}
+            id={id}
+            type="target"
+            position={position}
+            className="ps-handle"
+            isConnectableStart={false}
+          />
+        ) : null,
+      )}
+      {SIDES.map(([id, position]) =>
+        show(`s-${id}`) ? (
+          <Handle key={`s-${id}`} id={id} type="source" position={position} className="ps-handle" />
+        ) : null,
+      )}
     </>
   )
+}
+
+/**
+ * "should this card mount all its handles" — true on hover (mouse) or while a
+ * connection drag is in flight (so a hover-revealed source handle doesn't
+ * unmount mid-drag when the pointer leaves the card). Nodes OR this with
+ * `selected` (touch has no hover). Returns hover handlers for the outer div.
+ *
+ * CRITICAL: when the handle set changes we must `updateNodeInternals(id)` —
+ * React Flow measures a node's handles once on mount; a lazily-added handle is
+ * invisible to the connection system until this re-measure, so a drag from it
+ * never starts. This is the documented requirement for dynamic handles.
+ */
+function useHover(id: string): [boolean, { onPointerEnter: () => void; onPointerLeave: () => void }] {
+  const [hovered, setHovered] = useState(false)
+  const connecting = useContext(Connecting)
+  const active = hovered || connecting
+  const updateNodeInternals = useUpdateNodeInternals()
+  useEffect(() => {
+    updateNodeInternals(id)
+  }, [active, id, updateNodeInternals])
+  return [active, { onPointerEnter: () => setHovered(true), onPointerLeave: () => setHovered(false) }]
 }
 
 function Pin({ pinned }: { pinned: boolean }) {
@@ -132,6 +172,7 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   const t = useT()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
+  const [hovered, hoverProps] = useHover(id)
   const phone = useMediaQuery(PHONE_QUERY)
   const coarse = useMediaQuery(COARSE_QUERY)
   const node = data.node
@@ -217,7 +258,7 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
     // resizer + handles live OUTSIDE the card div: .ps-card clips overflow,
     // which cut the corner grips in half — visually AND for hit-testing
     // (touch resize was dead since Phase 1 because of this)
-    <div className={selected ? 'is-selected' : undefined} style={{ width: '100%', height: '100%' }}>
+    <div className={selected ? 'is-selected' : undefined} style={{ width: '100%', height: '100%' }} {...hoverProps}>
       <NodeResizer
         isVisible={!!selected}
         handleClassName="nopan"
@@ -226,7 +267,7 @@ function TextNode({ id, data, selected }: NodeProps<PSFlowNode>) {
         minHeight={48}
         onResizeEnd={onResizeEnd}
       />
-      <Sides />
+      <Sides used={data.usedHandles} interactive={hovered || selected} />
       <div
         className={`ps-card ps-text${selected ? ' is-selected' : ''}${node.discuss === false ? ' is-muted' : ''}`}
         style={tintStyle(node.color)}
@@ -295,6 +336,7 @@ const TEXT_EXTS = new Set(['md', 'markdown', 'txt'])
 
 function FileNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   const { commitGeometry } = useContext(BoardActions)
+  const [hovered, hoverProps] = useHover(id)
   // MUST be referentially stable: React Flow's ResizeControl lists
   // onResizeEnd in an effect that destroys/rebinds the resizer on change —
   // an inline arrow re-created per render killed in-flight TOUCH resize
@@ -327,9 +369,9 @@ function FileNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   }, [file, ext])
 
   return (
-    <div className={selected ? 'is-selected' : undefined} style={{ width: '100%', height: '100%' }}>
+    <div className={selected ? 'is-selected' : undefined} style={{ width: '100%', height: '100%' }} {...hoverProps}>
       <NodeResizer isVisible={!!selected} handleClassName="nopan" lineClassName="nopan" minWidth={120} minHeight={40} onResizeEnd={onResizeEnd} />
-      <Sides />
+      <Sides used={data.usedHandles} interactive={hovered || selected} />
       <div className={`ps-card ps-file${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)}>
         <Pin pinned={data.pinned} />
         <div className="ps-file-head">
@@ -351,6 +393,7 @@ function FileNode({ id, data, selected }: NodeProps<PSFlowNode>) {
 
 function LinkNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   const { commitGeometry } = useContext(BoardActions)
+  const [hovered, hoverProps] = useHover(id)
   // MUST be referentially stable: React Flow's ResizeControl lists
   // onResizeEnd in an effect that destroys/rebinds the resizer on change —
   // an inline arrow re-created per render killed in-flight TOUCH resize
@@ -362,9 +405,9 @@ function LinkNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   )
   const node = data.node
   return (
-    <div className={selected ? 'is-selected' : undefined} style={{ width: '100%', height: '100%' }}>
+    <div className={selected ? 'is-selected' : undefined} style={{ width: '100%', height: '100%' }} {...hoverProps}>
       <NodeResizer isVisible={!!selected} handleClassName="nopan" lineClassName="nopan" minWidth={120} minHeight={40} onResizeEnd={onResizeEnd} />
-      <Sides />
+      <Sides used={data.usedHandles} interactive={hovered || selected} />
       <div className={`ps-card ps-link${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)}>
         <Pin pinned={data.pinned} />
         <a href={node.url} target="_blank" rel="noreferrer" className="nodrag">
@@ -377,6 +420,7 @@ function LinkNode({ id, data, selected }: NodeProps<PSFlowNode>) {
 
 function GroupNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   const { commitLabel, commitGeometry, notifyEditing } = useContext(BoardActions)
+  const [hovered, hoverProps] = useHover(id)
   // MUST be referentially stable: React Flow's ResizeControl lists
   // onResizeEnd in an effect that destroys/rebinds the resizer on change —
   // an inline arrow re-created per render killed in-flight TOUCH resize
@@ -402,9 +446,9 @@ function GroupNode({ id, data, selected }: NodeProps<PSFlowNode>) {
   const press = useLongPress({ onDoubleTap: beginLabel })
 
   return (
-    <div className={`ps-group${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)} {...press}>
+    <div className={`ps-group${selected ? ' is-selected' : ''}`} style={tintStyle(node.color)} {...press} {...hoverProps}>
       <NodeResizer isVisible={!!selected} handleClassName="nopan" lineClassName="nopan" minWidth={160} minHeight={120} onResizeEnd={onResizeEnd} />
-      <Sides />
+      <Sides used={data.usedHandles} interactive={hovered || selected} />
       <Pin pinned={data.pinned} />
       {editing ? (
         <input

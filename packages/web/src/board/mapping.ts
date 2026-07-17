@@ -8,6 +8,12 @@ export interface PSData extends Record<string, unknown> {
   occupied?: boolean
   /** railJoint only: highlighted as the live snap target during a drag */
   snap?: boolean
+  /**
+   * handle keys this node's edges anchor to ("s-top", "t-left", …). These
+   * MUST stay mounted so edges don't jump; the other handles are lazy-mounted
+   * on hover/select (perf: 8 handles/card was 26% of all DOM on a big board).
+   */
+  usedHandles?: string[]
 }
 
 export type PSFlowNode = FlowNode<PSData>
@@ -230,6 +236,23 @@ export function toFlow(data: CanvasData, pinned: ReadonlySet<string>): { nodes: 
           : { stroke, strokeWidth: 1.6 },
     }
   })
+
+  // which handles are actually anchored by an edge → keep those mounted; the
+  // rest are lazy-mounted on hover/select in nodes.tsx (Sides)
+  const used = new Map<string, Set<string>>()
+  const mark = (id: string, key: string) => {
+    let set = used.get(id)
+    if (!set) used.set(id, (set = new Set()))
+    set.add(key)
+  }
+  for (const fe of flowEdges) {
+    mark(fe.source, `s-${fe.sourceHandle}`)
+    mark(fe.target, `t-${fe.targetHandle}`)
+  }
+  for (const fn of flowNodes) {
+    const u = used.get(fn.id)
+    if (u) fn.data = { ...fn.data, usedHandles: [...u] }
+  }
 
   return { nodes: flowNodes, edges: flowEdges }
 }

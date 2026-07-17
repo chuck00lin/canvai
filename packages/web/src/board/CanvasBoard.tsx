@@ -22,7 +22,7 @@ import {
   type Node as FlowNode,
 } from '@xyflow/react'
 import { api, type Mutation } from '../api'
-import { BoardActions, EditRequest, type BoardActionsValue, type EditRequestValue } from './actions'
+import { BoardActions, Connecting, EditRequest, type BoardActionsValue, type EditRequestValue } from './actions'
 import { clipRead, clipWrite, parsePayload, type ClipPayload } from './clipboard'
 import {
   absolutePosition,
@@ -604,6 +604,10 @@ function BoardInner({ path, changeSignal }: Props) {
     [mutate, load, railLookup],
   )
 
+  // true during a connection drag → cards force all handles mounted so a
+  // hover-revealed source handle doesn't unmount when the pointer leaves it
+  const [connecting, setConnecting] = useState(false)
+
   const onConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return
@@ -638,6 +642,7 @@ function BoardInner({ path, changeSignal }: Props) {
         fromHandle: { type: string; id?: string | null } | null
       },
     ) => {
+      setConnecting(false) // connection drag ended (valid or not)
       if (connectionState.isValid) return // a handle caught it — onConnect handled this drop
       const fromNode = connectionState.fromNode
       if (!fromNode || connectionState.fromHandle?.type !== 'source') return
@@ -1099,6 +1104,7 @@ function BoardInner({ path, changeSignal }: Props) {
       {...panePress}
     >
       <BoardActions.Provider value={actions}>
+       <Connecting.Provider value={connecting}>
         <EditRequest.Provider value={editReq}>
           <ReactFlow
             nodes={renderNodes}
@@ -1107,6 +1113,7 @@ function BoardInner({ path, changeSignal }: Props) {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onConnectStart={() => setConnecting(true)}
             onConnectEnd={onConnectEnd}
             onNodeDragStart={onNodeDragStart}
             onNodeDrag={onNodeDrag}
@@ -1144,6 +1151,7 @@ function BoardInner({ path, changeSignal }: Props) {
             <MiniMap pannable zoomable nodeColor={(n) => colorOf((n as PSFlowNode).data?.node?.color) ?? '#e2e5e9'} />
           </ReactFlow>
         </EditRequest.Provider>
+       </Connecting.Provider>
       </BoardActions.Provider>
       <button className="ps-addcard" onClick={addCard} title="add a text card at the viewport center">
         {t('card.add')}
