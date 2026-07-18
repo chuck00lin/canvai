@@ -90,7 +90,7 @@ function runInit(target: string): void {
   const mcpPath = path.join(target, '.mcp.json')
   const mcp = mergeJson(mcpPath) as { mcpServers?: Record<string, unknown> }
   mcp.mcpServers ??= {}
-  mcp.mcpServers.canvai = { type: 'stdio', command: 'npx', args: ['-y', 'canvai', 'mcp', '--root', '.'] }
+  mcp.mcpServers.canvai = { type: 'stdio', command: 'npx', args: ['-y', '@chuck00lin/canvai', 'mcp', '--root', '.'] }
   writeFileSync(mcpPath, JSON.stringify(mcp, null, 2) + '\n')
 
   // pre-approve the project-scoped server so a headless `claude -p` handoff can
@@ -107,7 +107,7 @@ function runInit(target: string): void {
   console.log('  .mcp.json               canvai MCP server (npx canvai mcp)')
   console.log('  .claude/settings.json   pre-approved for Claude Code')
   console.log('\nnext — open the board:')
-  console.log('  npx canvai serve --root . --autocommit    # → http://127.0.0.1:5199')
+  console.log('  npx @chuck00lin/canvai serve --root . --autocommit    # → http://127.0.0.1:5199')
 }
 
 const root = path.resolve(flag('--root') ?? process.cwd())

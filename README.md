@@ -18,11 +18,11 @@ Boards are plain [JSON Canvas](https://jsoncanvas.org) files in your repo, versi
 
 ```bash
 cd /path/to/your/project
-npx canvai init      # wire canvai in — .mcp.json + Claude Code pre-approval
-npx canvai serve     # → http://127.0.0.1:5199
+npx @chuck00lin/canvai init      # wire canvai in — .mcp.json + Claude Code pre-approval
+npx @chuck00lin/canvai serve     # → http://127.0.0.1:5199
 ```
 
-That's it — no clone, no build step. Requires **Node 18+**. Running it a lot? `npm i -g canvai` and drop the `npx`.
+That's it — no clone, no build step. Requires **Node 18+**. Running it a lot? `npm i -g @chuck00lin/canvai` and use `canvai` directly.
 
 > **What works today:** the whole human↔agent loop runs now — add canvai to any repo, open the board in your browser, and Claude Code edits it live while you drag cards back at it (MCP hub + canvas library + React Flow client, watcher → WebSocket). The board *protocol* is still soft — we're collecting real-world use cases before freezing it. **Wished you could whiteboard architecture with an agent instead of scrolling a terminal? [Tell us how you'd use it](.github/ISSUE_TEMPLATE/use-case.yml)** — early use cases shape this project the most.
 
@@ -59,7 +59,7 @@ Local by default. Add `--host 0.0.0.0 --token` for your LAN/VPN, or a [cloudflar
 
 ```bash
 cd /path/to/your/project
-npx canvai init
+npx @chuck00lin/canvai init
 ```
 
 This writes a `canvai` MCP server into `.mcp.json` and pre-approves it for Claude Code. *(Want it from source, or contributing? `git clone` + `node scripts/setup.mjs --repo .` does the same — see [docs/deploy.md](docs/deploy.md).)*
@@ -67,7 +67,7 @@ This writes a `canvai` MCP server into `.mcp.json` and pre-approves it for Claud
 **Open the canvas**:
 
 ```bash
-npx canvai serve --root . --autocommit   # → http://127.0.0.1:5199
+npx @chuck00lin/canvai serve --root . --autocommit   # → http://127.0.0.1:5199
 ```
 
 **Think together** — ask Claude Code *"create a board `discuss/architecture.canvas`, set it active, and sketch our module structure"*, and cards appear in the browser as it works. Drag one and it's **pinned** — `auto_layout` flows around it and the agent picks up your arrangement on its next read. Double-click to edit markdown (` ```mermaid ` fences render as diagrams), draw edges from the side handles, tick a board **active** to point the agent at it. In the side chat, **Send** asks the agent; **Note** just jots on the board.

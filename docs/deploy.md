@@ -10,10 +10,10 @@ On the target machine, from the repo you want boards in:
 
 ```bash
 cd /path/to/your/project
-npx canvai init      # writes .mcp.json + pre-approves it for Claude Code
+npx @chuck00lin/canvai init      # writes .mcp.json + pre-approves it for Claude Code
 ```
 
-`npx canvai init` writes a `canvai` MCP server into `.mcp.json` — spawned as `npx -y canvai mcp`,
+`npx @chuck00lin/canvai init` writes a `canvai` MCP server into `.mcp.json` — spawned as `npx -y canvai mcp`,
 so it always resolves to an installed canvai and runs under a Node that can execute it (no
 absolute paths, works in headless `claude -p` handoffs) — and pre-approves it in
 `.claude/settings.json` (`enabledMcpjsonServers: ["canvai"]`) so a headless handoff can use the
@@ -39,7 +39,7 @@ gives a public HTTPS URL over an outbound-only connection, no inbound ports open
 
 ```bash
 # terminal 1 — serve (keep it local; the tunnel is the only thing exposed)
-npx canvai serve --root /path/to/your/project --autocommit --token choose-a-secret
+npx @chuck00lin/canvai serve --root /path/to/your/project --autocommit --token choose-a-secret
 
 # terminal 2 — public URL
 cloudflared tunnel --url http://localhost:5199
@@ -58,7 +58,7 @@ While a remote install is new and you're not sitting next to it, have the hub **
 own crashes and errors** to an endpoint you control. Opt in with `--report-url`:
 
 ```bash
-npx canvai serve --root /path/to/your/project \
+npx @chuck00lin/canvai serve --root /path/to/your/project \
     --autocommit --host 0.0.0.0 --token choose-a-secret \
     --report-url https://your-endpoint.example/report
 ```

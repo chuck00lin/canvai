@@ -1,6 +1,9 @@
 {
-  "name": "canvai",
+  "name": "@chuck00lin/canvai",
   "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "Repo-native JSON Canvas whiteboard for humans + AI agents — discuss with your coding agent on a shared canvas; boards are plain files in your repo.",
   "type": "module",
   "license": "MIT",

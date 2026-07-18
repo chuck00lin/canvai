@@ -18,11 +18,11 @@ English → **[README.md](README.md)**
 
 ```bash
 cd /path/to/your/project
-npx canvai init      # 接進來——寫 .mcp.json + Claude Code 預核准
-npx canvai serve     # → http://127.0.0.1:5199
+npx @chuck00lin/canvai init      # 接進來——寫 .mcp.json + Claude Code 預核准
+npx @chuck00lin/canvai serve     # → http://127.0.0.1:5199
 ```
 
-就這樣——不用 clone、不用 build。需要 **Node 18+**。常用的話 `npm i -g canvai`，之後省掉 `npx`。
+就這樣——不用 clone、不用 build。需要 **Node 18+**。常用的話 `npm i -g @chuck00lin/canvai`，之後直接用 `canvai`。
 
 > **現在就能用：** 整個人↔agent 閉環現在就跑得起來——把 canvai 接到任何 repo、在瀏覽器打開板，Claude Code 就即時在上面編輯、你同時拖卡片回應它（MCP hub＋canvas 函式庫＋React Flow client，watcher→WebSocket）。板的*協定*仍在收斂，我們正收集真實情境再凍結它。**曾希望能跟 agent 在白板上而不是滑 terminal 討論架構？[告訴我們你的情境](.github/ISSUE_TEMPLATE/use-case.yml)**——早期需求最能形塑這專案。
 
@@ -59,7 +59,7 @@ Web client 就是完整 UI——不用再裝別的。但因為板子就是 JSON 
 
 ```bash
 cd /path/to/your/project
-npx canvai init
+npx @chuck00lin/canvai init
 ```
 
 這會把 `canvai` MCP server 寫進 `.mcp.json` 並替 Claude Code 預核准。*（想從原始碼跑或要貢獻？`git clone` + `node scripts/setup.mjs --repo .` 效果相同——見 [docs/deploy.md](docs/deploy.md)。）*
@@ -67,7 +67,7 @@ npx canvai init
 **打開畫布：**
 
 ```bash
-npx canvai serve --root . --autocommit   # → http://127.0.0.1:5199
+npx @chuck00lin/canvai serve --root . --autocommit   # → http://127.0.0.1:5199
 ```
 
 **一起想**——叫 Claude Code *「建一張板 `discuss/architecture.canvas`、設為 active、把我們的模組結構畫上去」*，卡片就會隨它工作出現在瀏覽器。拖一張卡它就 **pin 住**——`auto_layout` 繞開它、agent 下次讀取接手你的排版。雙擊編輯 markdown（` ```mermaid ` fence 會渲染成圖）、從側邊 handle 拉線、勾選一張板為 **active** 把 agent 指過去。側邊 chat 裡，**Send** 問 agent；**Note** 只在板上記一筆。
