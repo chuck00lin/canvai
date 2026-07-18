@@ -54,29 +54,20 @@ Local by default. Add `--host 0.0.0.0 --token` for your LAN/VPN, or a [cloudflar
 
 ## Get started
 
-**1 · Install & wire it in.** Clone canvai next to (not inside) the repo you want boards in, then run setup against that repo:
+**Install** — clone canvai next to the repo you want boards in, then point setup at that repo. `setup.mjs` handles deps, the web build, and wiring `.mcp.json` for Claude Code:
 
 ```bash
 git clone https://github.com/chuck00lin/canvai.git
 node canvai/scripts/setup.mjs --repo /path/to/your/project
 ```
 
-This checks Node, installs deps, builds the web client, writes a `canvai` server into your project's `.mcp.json`, and pre-approves it for Claude Code. (Prefer to wire it by hand? Any MCP client works — the server is `node <abs-node>/packages/hub/src/cli.ts --root .`.)
-
-**2 · Open the canvas.** From your project:
+**Open the canvas** — it prints this command; run it from your project:
 
 ```bash
-node /path/to/canvai/packages/hub/src/cli.ts serve --root . --autocommit
-# → http://127.0.0.1:5199
+node /path/to/canvai/packages/hub/src/cli.ts serve --root . --autocommit   # → http://127.0.0.1:5199
 ```
 
-**3 · Think together.** Ask Claude Code something like:
-
-> create a board `discuss/architecture.canvas`, set it active, and sketch our module structure on it
-
-Cards appear in the browser as the agent works. Drag one and it's **pinned** — `auto_layout` flows around it and the agent picks up your arrangement on its next read. Double-click a card to edit markdown (` ```mermaid ` fences render as diagrams), draw edges from the side handles, and tick a board **active** in the sidebar to point the agent at it.
-
-The side chat is for words; the board is for spatial thinking. **Send** and the agent reads the whole board and replies; **Note** just jots on the board without a reply.
+**Think together** — ask Claude Code *"create a board `discuss/architecture.canvas`, set it active, and sketch our module structure"*, and cards appear in the browser as it works. Drag one and it's **pinned** — `auto_layout` flows around it and the agent picks up your arrangement on its next read. Double-click to edit markdown (` ```mermaid ` fences render as diagrams), draw edges from the side handles, tick a board **active** to point the agent at it. In the side chat, **Send** asks the agent; **Note** just jots on the board.
 
 <div align="center">
 <img src="docs/images/canvai-chat.png" alt="canvai chat — Send asks the agent, Note just jots" width="340">
@@ -140,14 +131,6 @@ Next: **real-time** — a CRDT document layer (Yjs) for simultaneous human + age
 ## Contributing
 
 The most valuable contribution right now is a **use case**: who you are, what you'd put on the board, what the agent should do there. [Open a use-case issue](.github/ISSUE_TEMPLATE/use-case.yml) — or challenge the design decisions in [docs/design.md](docs/design.md). See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Star history
-
-If canvai resonates, a star helps other visual thinkers find it. ⭐
-
-<a href="https://star-history.com/#chuck00lin/canvai&Date">
-  <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=chuck00lin/canvai&type=Date" width="640">
-</a>
 
 ## Prior art & credits
 
