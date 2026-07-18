@@ -61,6 +61,8 @@ npm run serve -- --host 0.0.0.0 --token choose-a-secret
 
 The token guards `/api` and `/ws` (the static shell carries no data); the CLI prints every reachable address on startup and warns if you expose without a token. Prefer zero flags? An SSH tunnel also works: `ssh -L 5199:127.0.0.1:5199 <host>`, then open `http://127.0.0.1:5199` locally.
 
+**No VPN, or putting canvai on someone else's machine?** [`docs/deploy.md`](docs/deploy.md) covers the scripted setup (`node scripts/setup.mjs --repo <project>`), a public HTTPS URL via cloudflared with no port-forward, and `--report-url` so a remote install reports its own crashes/errors to an endpoint you control while it's still early.
+
 ## The core idea
 
 Diagrams have two possible sources of truth, and the split maps exactly onto who is good at what:

@@ -6,6 +6,7 @@ import { WebSocketServer, WebSocket } from 'ws'
 import { diffBoards, isEmptyDiff, type CanvasData } from '@canvai/canvas-kit'
 import { createBoard, deleteBoard, listBoards, readBoard, readBoardRaw, renameBoard, writeBoard } from './boards.ts'
 import { createAutoCommit } from './git.ts'
+import { errorDetail, type Reporter } from './report.ts'
 import { addPinned, getActiveBoard, getPinned, removePinned, setActiveBoard } from './state.ts'
 import { appendEvent, readEventsSince, recentAgentWrite } from './events.ts'
 import { appendChat, readChatSince } from './chat.ts'
@@ -41,6 +42,8 @@ export interface ServeOptions {
   webDist?: string
   /** commit every board change to the root's git repo (needs `git init` in root) */
   autoCommit?: boolean
+  /** error telemetry sink (from --report-url); no-op when unset */
+  reporter?: Reporter
 }
 
 export interface RunningServer {
@@ -92,6 +95,7 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
   const markSelfWrite = (board: string) => selfWrites.set(board, Date.now())
   const wasSelfWrite = (board: string) => Date.now() - (selfWrites.get(board) ?? 0) <= SELF_WRITE_WINDOW_MS
   const git = await createAutoCommit(root, options.autoCommit ?? false)
+  const reporter: Reporter = options.reporter ?? { send: () => {} }
 
   for (const board of await listBoards(root)) {
     try {
@@ -199,6 +203,7 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
 
   const server: Server = createServer((req, res) => {
     void route(req, res).catch((error) => {
+      reporter.send('error', { source: 'api', method: req.method, path: req.url?.split('?')[0], ...errorDetail(error) })
       sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) })
     })
   })
@@ -361,6 +366,20 @@ export async function startServe(root: string, options: ServeOptions = {}): Prom
       if (Array.isArray(body.lines) && body.lines.length > 0 && body.lines.length <= 500) {
         const file = path.join(root, '.canvai', 'debug.jsonl')
         await appendFile(file, body.lines.map((l) => String(l).slice(0, 300)).join('\n') + '\n', 'utf8')
+      }
+      return sendJson(res, 200, { ok: true })
+    }
+    if (pathname === '/api/report' && req.method === 'POST') {
+      // the web client forwards its own uncaught errors here → telemetry sink,
+      // so browser-side breakage reaches the operator during early testing
+      const body = (await readJson(req)) as { message?: string; stack?: string; where?: string }
+      if (body.message) {
+        reporter.send('client-error', {
+          source: 'browser',
+          message: String(body.message).slice(0, 500),
+          stack: body.stack ? String(body.stack).split('\n').slice(0, 4).join('\n').slice(0, 800) : undefined,
+          where: body.where ? String(body.where).slice(0, 120) : undefined,
+        })
       }
       return sendJson(res, 200, { ok: true })
     }

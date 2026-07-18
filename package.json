@@ -14,7 +14,8 @@
     "hub": "node packages/hub/src/cli.ts",
     "serve": "node packages/hub/src/cli.ts serve",
     "web:dev": "npm run dev -w @canvai/web",
-    "web:build": "npm run build -w @canvai/web"
+    "web:build": "npm run build -w @canvai/web",
+    "setup": "node scripts/setup.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

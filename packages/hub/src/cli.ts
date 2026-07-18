@@ -5,6 +5,7 @@ import process from 'node:process'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { createHubServer } from './server.ts'
 import { startServe } from './serve.ts'
+import { createReporter, errorDetail } from './report.ts'
 
 const args = process.argv.slice(2)
 
@@ -31,6 +32,8 @@ options:
                    (default: 300)
   --autocommit     commit every board change to the root's git repo
                    (run 'git init' in the root first)
+  --report-url <u> POST error telemetry (startup / crash / API+client errors)
+                   to this URL. Diagnostics only — never board content. Opt-in.
 
 Both modes coordinate through files (.canvas, .canvai/) — run them
 side by side, or either one alone.`)
@@ -69,7 +72,17 @@ if (args[0] === 'serve') {
   const handoffTimeout = flag('--handoff-timeout')
   const handoffTimeoutMs = handoffTimeout ? Number(handoffTimeout) * 1000 : undefined
   const autoCommit = args.includes('--autocommit')
-  const running = await startServe(root, { port, host, token, agentCmd, handoffMode, handoffTimeoutMs, autoCommit })
+  const reporter = createReporter(flag('--report-url'), path.basename(root))
+  // crashes are the whole point of telemetry — catch them before the process dies
+  process.on('uncaughtException', (error) => {
+    reporter.send('crash', { source: 'uncaughtException', ...errorDetail(error) })
+    console.error('canvai hub: uncaught exception', error)
+  })
+  process.on('unhandledRejection', (reason) => {
+    reporter.send('crash', { source: 'unhandledRejection', ...errorDetail(reason) })
+  })
+  const running = await startServe(root, { port, host, token, agentCmd, handoffMode, handoffTimeoutMs, autoCommit, reporter })
+  reporter.send('startup', { port: running.port })
   console.error(`canvai hub: serving ${root}`)
   const suffix = token ? `/?token=${encodeURIComponent(token)}` : '/'
   for (const address of host === '0.0.0.0' ? reachableAddresses() : [host]) {
