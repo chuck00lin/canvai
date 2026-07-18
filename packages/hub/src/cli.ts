@@ -1,7 +1,9 @@
 #!/usr/bin/env node
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { networkInterfaces } from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { createHubServer } from './server.ts'
 import { startServe } from './serve.ts'
@@ -10,11 +12,12 @@ import { createReporter, errorDetail } from './report.ts'
 const args = process.argv.slice(2)
 
 if (args.includes('--help') || args.includes('-h')) {
-  console.log(`canvai-hub — repo-native JSON Canvas boards for humans + AI agents
+  console.log(`canvai — repo-native JSON Canvas boards for humans + AI agents
 
 usage:
-  canvai-hub [--root <path>]                              MCP server on stdio (for agent harnesses)
-  canvai-hub serve [--root] [--port] [--host] [--token]   HTTP + WebSocket server for the web client
+  canvai init [--root <path>]                             wire canvai into a repo (.mcp.json + Claude Code pre-approval)
+  canvai serve [--root] [--port] [--host] [--token]       HTTP + WebSocket server for the web client
+  canvai mcp [--root <path>]                              MCP server on stdio (for agent harnesses; also the default)
 
 options:
   --root <path>    repo root to serve (default: cwd)
@@ -61,9 +64,58 @@ function flag(name: string): string | undefined {
   return value
 }
 
-const root = path.resolve(flag('--root') ?? process.cwd())
+function resolveWebDist(): string {
+  const here = fileURLToPath(new URL('.', import.meta.url))
+  const candidates = [
+    path.join(here, 'web'), // published bundle: dist/canvai.mjs → dist/web
+    path.join(here, '..', '..', 'web', 'dist'), // dev: packages/hub/src → packages/web/dist
+  ]
+  for (const dir of candidates) if (existsSync(path.join(dir, 'index.html'))) return dir
+  return candidates[0]
+}
 
-if (args[0] === 'serve') {
+function mergeJson(file: string): Record<string, unknown> {
+  if (!existsSync(file)) return {}
+  try {
+    return JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
+  } catch {
+    console.error(`canvai: ${file} is not valid JSON — leaving it untouched`)
+    return {}
+  }
+}
+
+function runInit(target: string): void {
+  // MCP server spawned via npx: always resolves to the installed canvai and runs
+  // under a Node that can execute it — no absolute paths, works in headless handoffs.
+  const mcpPath = path.join(target, '.mcp.json')
+  const mcp = mergeJson(mcpPath) as { mcpServers?: Record<string, unknown> }
+  mcp.mcpServers ??= {}
+  mcp.mcpServers.canvai = { type: 'stdio', command: 'npx', args: ['-y', 'canvai', 'mcp', '--root', '.'] }
+  writeFileSync(mcpPath, JSON.stringify(mcp, null, 2) + '\n')
+
+  // pre-approve the project-scoped server so a headless `claude -p` handoff can
+  // use it without interactive /mcp approval.
+  const settingsPath = path.join(target, '.claude', 'settings.json')
+  const settings = mergeJson(settingsPath) as { enabledMcpjsonServers?: string[] }
+  const enabled = new Set(settings.enabledMcpjsonServers ?? [])
+  enabled.add('canvai')
+  settings.enabledMcpjsonServers = [...enabled]
+  mkdirSync(path.dirname(settingsPath), { recursive: true })
+  writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n')
+
+  console.log(`canvai: wired into ${target}`)
+  console.log('  .mcp.json               canvai MCP server (npx canvai mcp)')
+  console.log('  .claude/settings.json   pre-approved for Claude Code')
+  console.log('\nnext — open the board:')
+  console.log('  npx canvai serve --root . --autocommit    # → http://127.0.0.1:5199')
+}
+
+const root = path.resolve(flag('--root') ?? process.cwd())
+const command = args[0] && !args[0].startsWith('--') ? args[0] : 'mcp'
+
+if (command === 'init') {
+  runInit(root)
+} else if (command === 'serve') {
   const port = Number(flag('--port') ?? 5199)
   const host = flag('--host') ?? '127.0.0.1'
   const token = flag('--token')
@@ -81,7 +133,7 @@ if (args[0] === 'serve') {
   process.on('unhandledRejection', (reason) => {
     reporter.send('crash', { source: 'unhandledRejection', ...errorDetail(reason) })
   })
-  const running = await startServe(root, { port, host, token, agentCmd, handoffMode, handoffTimeoutMs, autoCommit, reporter })
+  const running = await startServe(root, { port, host, token, agentCmd, handoffMode, handoffTimeoutMs, autoCommit, reporter, webDist: resolveWebDist() })
   reporter.send('startup', { port: running.port })
   console.error(`canvai hub: serving ${root}`)
   const suffix = token ? `/?token=${encodeURIComponent(token)}` : '/'

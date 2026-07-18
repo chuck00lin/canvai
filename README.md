@@ -17,11 +17,12 @@
 Boards are plain [JSON Canvas](https://jsoncanvas.org) files in your repo, versioned by git. Drop canvai into any project, point [Claude Code](https://claude.com/claude-code) (or any MCP client) at it, and discuss in the browser instead of the terminal — no design tool, no account, no Obsidian required.
 
 ```bash
-git clone https://github.com/chuck00lin/canvai.git
-node canvai/scripts/setup.mjs --repo /path/to/your/project
+cd /path/to/your/project
+npx canvai init      # wire canvai in — .mcp.json + Claude Code pre-approval
+npx canvai serve     # → http://127.0.0.1:5199
 ```
 
-Requires **Node ≥ 23.6** (the hub runs TypeScript natively — no build step). `setup.mjs` installs deps, builds the web client, and wires canvai into your repo's `.mcp.json` — then prints the one command to open the board.
+That's it — no clone, no build step. Requires **Node 18+**. Running it a lot? `npm i -g canvai` and drop the `npx`.
 
 > **What works today:** the whole human↔agent loop runs now — add canvai to any repo, open the board in your browser, and Claude Code edits it live while you drag cards back at it (MCP hub + canvas library + React Flow client, watcher → WebSocket). The board *protocol* is still soft — we're collecting real-world use cases before freezing it. **Wished you could whiteboard architecture with an agent instead of scrolling a terminal? [Tell us how you'd use it](.github/ISSUE_TEMPLATE/use-case.yml)** — early use cases shape this project the most.
 
@@ -54,17 +55,19 @@ Local by default. Add `--host 0.0.0.0 --token` for your LAN/VPN, or a [cloudflar
 
 ## Get started
 
-**Install** — clone canvai next to the repo you want boards in, then point setup at that repo. `setup.mjs` handles deps, the web build, and wiring `.mcp.json` for Claude Code:
+**Wire it in** — from the repo you want boards in:
 
 ```bash
-git clone https://github.com/chuck00lin/canvai.git
-node canvai/scripts/setup.mjs --repo /path/to/your/project
+cd /path/to/your/project
+npx canvai init
 ```
 
-**Open the canvas** — it prints this command; run it from your project:
+This writes a `canvai` MCP server into `.mcp.json` and pre-approves it for Claude Code. *(Want it from source, or contributing? `git clone` + `node scripts/setup.mjs --repo .` does the same — see [docs/deploy.md](docs/deploy.md).)*
+
+**Open the canvas**:
 
 ```bash
-node /path/to/canvai/packages/hub/src/cli.ts serve --root . --autocommit   # → http://127.0.0.1:5199
+npx canvai serve --root . --autocommit   # → http://127.0.0.1:5199
 ```
 
 **Think together** — ask Claude Code *"create a board `discuss/architecture.canvas`, set it active, and sketch our module structure"*, and cards appear in the browser as it works. Drag one and it's **pinned** — `auto_layout` flows around it and the agent picks up your arrangement on its next read. Double-click to edit markdown (` ```mermaid ` fences render as diagrams), draw edges from the side handles, tick a board **active** to point the agent at it. In the side chat, **Send** asks the agent; **Note** just jots on the board.

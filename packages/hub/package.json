@@ -1,22 +1,48 @@
 {
-  "name": "@canvai/hub",
+  "name": "canvai",
   "version": "0.1.0",
-  "description": "canvai hub — MCP server exposing repo-native JSON Canvas boards to AI agents",
+  "description": "Repo-native JSON Canvas whiteboard for humans + AI agents — discuss with your coding agent on a shared canvas; boards are plain files in your repo.",
   "type": "module",
   "license": "MIT",
   "bin": {
-    "canvai-hub": "./src/cli.ts"
+    "canvai": "dist/canvai.mjs"
   },
-  "exports": {
-    ".": "./src/server.ts"
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
   },
-  "dependencies": {
-    "@canvai/canvas-kit": "0.1.0",
-    "@modelcontextprotocol/sdk": "^1.12.0",
-    "ws": "^8.18.0",
-    "zod": "^3.24.0"
+  "keywords": [
+    "canvas",
+    "json-canvas",
+    "whiteboard",
+    "mcp",
+    "claude",
+    "claude-code",
+    "ai-agent",
+    "obsidian",
+    "diagram",
+    "mermaid"
+  ],
+  "homepage": "https://github.com/chuck00lin/canvai#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chuck00lin/canvai.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chuck00lin/canvai/issues"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "prepublishOnly": "node build.mjs"
   },
   "devDependencies": {
-    "@types/ws": "^8.5.13"
+    "@canvai/canvas-kit": "0.1.0",
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "@types/ws": "^8.5.13",
+    "esbuild": "^0.24.0",
+    "ws": "^8.18.0",
+    "zod": "^3.24.0"
   }
 }

@@ -4,24 +4,31 @@ This is the path for putting canvai on a repo that lives on a **different machin
 a collaborator's laptop, a lab workstation, the machine your real project is on — and
 watching it from where you are while it's still early and rough.
 
-## One-shot setup
+## Setup
 
-On the target machine, clone canvai next to (not inside) the repo you want boards in,
-then run the setup script against that repo:
+On the target machine, from the repo you want boards in:
+
+```bash
+cd /path/to/your/project
+npx canvai init      # writes .mcp.json + pre-approves it for Claude Code
+```
+
+`npx canvai init` writes a `canvai` MCP server into `.mcp.json` — spawned as `npx -y canvai mcp`,
+so it always resolves to an installed canvai and runs under a Node that can execute it (no
+absolute paths, works in headless `claude -p` handoffs) — and pre-approves it in
+`.claude/settings.json` (`enabledMcpjsonServers: ["canvai"]`) so a headless handoff can use the
+tools without interactive `/mcp` approval. canvai has **no undo** yet — keep your project under
+git and start the hub with `--autocommit` so git *is* the undo.
+
+**From source instead** (contributing, air-gapped, or a Node without npx): clone canvai and run
+the equivalent setup script, which builds the web client and pins `.mcp.json` to an absolute
+Node ≥ 23.6 path (a bare `node` can resolve to the Claude CLI's own older Node and fail to run
+canvai's TypeScript entry):
 
 ```bash
 git clone git@github.com:chuck00lin/canvai.git
-cd canvai
-node scripts/setup.mjs --repo /path/to/your/project    # or: npm run setup -- --repo /path/to/your/project
+node canvai/scripts/setup.mjs --repo /path/to/your/project
 ```
-
-`setup.mjs` is idempotent. It:
-
-1. checks Node ≥ 23.6 (the hub runs TypeScript directly — no build step),
-2. installs deps and builds the browser client if needed,
-3. writes a `canvai` server into your project's `.mcp.json` — pinned to an **absolute** Node ≥ 23.6 path (a bare `node` can resolve to the Claude CLI's own bundled older Node, which can't run canvai's TypeScript entry — `ERR_UNKNOWN_FILE_EXTENSION ".ts"`) — and pre-approves it in `.claude/settings.json` (`enabledMcpjsonServers: ["canvai"]`) so a headless `claude -p` handoff can use the tools without interactive `/mcp` approval,
-4. tells you whether your project is under git (canvai has **no undo** yet — git *is* the undo; start the hub with `--autocommit`),
-5. prints the exact serve / tunnel / monitoring commands, filled in with your paths.
 
 ## Reaching the board with no VPN
 
@@ -32,7 +39,7 @@ gives a public HTTPS URL over an outbound-only connection, no inbound ports open
 
 ```bash
 # terminal 1 — serve (keep it local; the tunnel is the only thing exposed)
-node /path/to/canvai/packages/hub/src/cli.ts serve --root /path/to/your/project --autocommit --token choose-a-secret
+npx canvai serve --root /path/to/your/project --autocommit --token choose-a-secret
 
 # terminal 2 — public URL
 cloudflared tunnel --url http://localhost:5199
@@ -51,7 +58,7 @@ While a remote install is new and you're not sitting next to it, have the hub **
 own crashes and errors** to an endpoint you control. Opt in with `--report-url`:
 
 ```bash
-node /path/to/canvai/packages/hub/src/cli.ts serve --root /path/to/your/project \
+npx canvai serve --root /path/to/your/project \
     --autocommit --host 0.0.0.0 --token choose-a-secret \
     --report-url https://your-endpoint.example/report
 ```
