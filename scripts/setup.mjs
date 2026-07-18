@@ -10,7 +10,7 @@
  * re-running is safe.
  */
 import { execSync } from 'node:child_process'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import process from 'node:process'
@@ -54,7 +54,7 @@ if (!existsSync(path.join(CANVAI, 'packages', 'web', 'dist', 'index.html'))) {
   ok('built web client')
 } else ok('web client already built')
 
-// 3 — .mcp.json in the target repo
+// 3 — .mcp.json + pre-approval in the target repo
 step('3 · Point Claude Code at the repo')
 const mcpPath = path.join(repo, '.mcp.json')
 let mcp = {}
@@ -66,11 +66,41 @@ if (existsSync(mcpPath)) {
   }
 }
 mcp.mcpServers ??= {}
-if (mcp.mcpServers.canvai) ok('.mcp.json already has a canvai server')
+// Use an ABSOLUTE node path, never bare "node". Claude Code spawns the MCP server
+// with whatever "command" resolves to — and a Claude CLI running under an older
+// Node (e.g. 20) can't execute canvai's TypeScript cli.ts (needs ≥ 23.6): it dies
+// with ERR_UNKNOWN_FILE_EXTENSION ".ts". process.execPath is THIS script's own
+// interpreter, which step 1 already proved is ≥ 23.6, so it's always safe here.
+// (Path is machine-specific by nature — re-run setup on each machine.)
+const server = { type: 'stdio', command: process.execPath, args: [cli, '--root', '.'] }
+const existing = mcp.mcpServers.canvai
+if (existing && existing.command === process.execPath) ok('.mcp.json canvai server already points at this Node')
 else {
-  mcp.mcpServers.canvai = { command: 'node', args: [cli, '--root', '.'] }
+  mcp.mcpServers.canvai = server
   writeFileSync(mcpPath, JSON.stringify(mcp, null, 2) + '\n')
-  ok(`wrote canvai server to ${mcpPath}`)
+  ok(`${existing ? 'repaired' : 'wrote'} canvai server in ${mcpPath}\n    → ${process.execPath}`)
+}
+
+// Pre-approve the project-scoped server so a headless `claude -p` handoff can use
+// it without interactive /mcp approval — otherwise it sits at "Pending approval"
+// and a non-interactive session silently falls back to reading .canvai/ files.
+const settingsPath = path.join(repo, '.claude', 'settings.json')
+let settings = {}
+if (existsSync(settingsPath)) {
+  try {
+    settings = JSON.parse(readFileSync(settingsPath, 'utf8'))
+  } catch {
+    warn(`${settingsPath} exists but is not valid JSON — leaving it untouched`)
+  }
+}
+const enabled = new Set(settings.enabledMcpjsonServers ?? [])
+if (enabled.has('canvai')) ok('.claude/settings.json already pre-approves canvai')
+else {
+  enabled.add('canvai')
+  settings.enabledMcpjsonServers = [...enabled]
+  mkdirSync(path.dirname(settingsPath), { recursive: true })
+  writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n')
+  ok(`pre-approved canvai in ${settingsPath}`)
 }
 
 // 4 — git (undo safety net + telemetry via history)

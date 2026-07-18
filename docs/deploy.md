@@ -19,7 +19,7 @@ node scripts/setup.mjs --repo /path/to/your/project    # or: npm run setup -- --
 
 1. checks Node ≥ 23.6 (the hub runs TypeScript directly — no build step),
 2. installs deps and builds the browser client if needed,
-3. writes a `canvai` server into your project's `.mcp.json` (so Claude Code / any MCP client can reach it),
+3. writes a `canvai` server into your project's `.mcp.json` — pinned to an **absolute** Node ≥ 23.6 path (a bare `node` can resolve to the Claude CLI's own bundled older Node, which can't run canvai's TypeScript entry — `ERR_UNKNOWN_FILE_EXTENSION ".ts"`) — and pre-approves it in `.claude/settings.json` (`enabledMcpjsonServers: ["canvai"]`) so a headless `claude -p` handoff can use the tools without interactive `/mcp` approval,
 4. tells you whether your project is under git (canvai has **no undo** yet — git *is* the undo; start the hub with `--autocommit`),
 5. prints the exact serve / tunnel / monitoring commands, filled in with your paths.
 
