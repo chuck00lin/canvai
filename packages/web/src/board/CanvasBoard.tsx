@@ -885,20 +885,32 @@ function BoardInner({ path, changeSignal }: Props) {
     const inEditor = (target: EventTarget | null) =>
       !!(target as HTMLElement | null)?.closest?.('textarea, input, [contenteditable]')
     const onKey = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || (event.key !== 'c' && event.key !== 'v')) return
-      if (inEditor(event.target)) return // never hijack copy/paste while typing
-      if (event.key === 'c') {
+      if (!(event.metaKey || event.ctrlKey) || (event.key !== 'c' && event.key !== 'v' && event.key !== 'x')) return
+      if (inEditor(event.target)) return // never hijack copy/cut/paste while typing
+      if (event.key === 'v') {
+        event.preventDefault()
+        pasteClipboard()
+      } else if (event.key === 'c') {
         // only claim ⌘C when we actually copied — else the browser's own copy
         // (e.g. selected chat text) must proceed
         if (copyCards()) event.preventDefault()
       } else {
-        event.preventDefault()
-        pasteClipboard()
+        // ⌘X cut = copy the selected cards, then delete exactly those. Only
+        // real cards (text/file/link) — never groups, rails, or joints.
+        const map = byId()
+        const ids = selectionRef.current.nodes.filter((id) => {
+          const n = map.get(id)
+          return !!n && (n.type === 'text' || n.type === 'file' || n.type === 'link')
+        })
+        if (ids.length > 0 && copyCards(ids)) {
+          event.preventDefault()
+          mutate(ids.map((id): Mutation => ({ kind: 'delete_node', id })))
+        }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [copyCards, pasteClipboard])
+  }, [copyCards, pasteClipboard, mutate])
 
   // rail draw tool: one stroke on the canvas becomes a rail — direction locks
   // to whichever axis dominates, slot count follows the stroke length
