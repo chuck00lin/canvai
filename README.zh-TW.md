@@ -1,8 +1,10 @@
 <div align="center">
 
-<img src="docs/images/canvai-demo.gif" alt="canvai — agent 在你眼前即時把規劃畫上板" width="820">
+<img src="docs/images/canvai-icon.svg" alt="canvai" width="84">
 
 # canvai
+
+<img src="docs/images/canvai-demo.gif" alt="canvai — agent 在你眼前即時把規劃畫上板" width="820">
 
 **為你和你的 agent 打造的白板。** 說出你在想什麼——你的 coding agent 就把它畫成一張共享畫布：卡片、連線、圖表，並跟你一起即時重塑它。
 

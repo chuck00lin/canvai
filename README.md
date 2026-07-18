@@ -1,8 +1,10 @@
 <div align="center">
 
-<img src="docs/images/canvai-demo.gif" alt="canvai — an agent sketches a planning board live while you watch" width="820">
+<img src="docs/images/canvai-icon.svg" alt="canvai" width="84">
 
 # canvai
+
+<img src="docs/images/canvai-demo.gif" alt="canvai — an agent sketches a planning board live while you watch" width="820">
 
 **The whiteboard built for you and your agent.** Describe what you're thinking — your coding agent sketches it on a shared canvas of cards, connections, and diagrams, and reshapes it with you, live.
 
