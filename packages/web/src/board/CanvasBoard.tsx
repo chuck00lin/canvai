@@ -760,6 +760,30 @@ function BoardInner({ path, changeSignal }: Props) {
     [reverseEdge],
   )
 
+  /** set an edge's label and/or color, preserving direction & the other field
+   *  (re-creates the edge — same mechanism as reverse). `''` clears a field. */
+  const editEdge = useCallback(
+    (edge: FlowEdge, changes: { label?: string; color?: string }) => {
+      const curLabel = typeof edge.label === 'string' ? edge.label : undefined
+      const curColor = (edge.data as { color?: string } | undefined)?.color
+      const label = changes.label !== undefined ? changes.label || undefined : curLabel
+      const color = changes.color !== undefined ? changes.color || undefined : curColor
+      mutate([
+        { kind: 'delete_edge', id: edge.id },
+        {
+          kind: 'add_edge',
+          from: edge.source,
+          to: edge.target,
+          fromSide: edge.sourceHandle ?? undefined,
+          toSide: edge.targetHandle ?? undefined,
+          label,
+          color,
+        },
+      ])
+    },
+    [mutate],
+  )
+
   const onSelectionChange = useCallback(
     (params: { nodes: FlowNode[]; edges: FlowEdge[] }) => {
       setSelection({ nodes: params.nodes.map((n) => n.id), edges: params.edges.map((e) => e.id) })
@@ -1538,6 +1562,42 @@ function BoardInner({ path, changeSignal }: Props) {
                   >
                     ⇄ {t('toolbar.reverse')}
                   </button>
+                  <input
+                    className="ps-ctxmenu-edgelabel"
+                    style={{ width: '100%' }}
+                    defaultValue={typeof menuEdge.label === 'string' ? menuEdge.label : ''}
+                    placeholder={t('edge.label')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        editEdge(menuEdge, { label: e.currentTarget.value })
+                        close()
+                      }
+                    }}
+                  />
+                  <div className="ps-ctxmenu-colors">
+                    {Object.entries(CANVAS_COLORS).map(([key, hex]) => (
+                      <button
+                        key={key}
+                        className="ps-colordot"
+                        style={{ background: hex }}
+                        onClick={() => {
+                          editEdge(menuEdge, { color: key })
+                          close()
+                        }}
+                        aria-label={`edge color ${key}`}
+                      />
+                    ))}
+                    <button
+                      className="ps-colordot ps-colordot-none"
+                      onClick={() => {
+                        editEdge(menuEdge, { color: '' })
+                        close()
+                      }}
+                      aria-label="clear edge color"
+                    >
+                      ⊘
+                    </button>
+                  </div>
                   <button
                     className="ps-toolbar-danger"
                     onClick={() => {

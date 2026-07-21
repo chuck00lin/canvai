@@ -220,6 +220,9 @@ export function toFlow(data: CanvasData, pinned: ReadonlySet<string>): { nodes: 
       sourceHandle: sourceHandle ?? 'right',
       targetHandle: targetHandle ?? 'left',
       ...(e.label ? { label: e.label } : {}),
+      // carry the raw canvas color so edits (label/color) can round-trip it —
+      // style.stroke is a resolved hex, not the canvas color name
+      ...(e.color ? { data: { color: e.color } } : {}),
       // rail plumbing draws as straight segments: a bezier S-curve into a
       // point-sized joint reads as noise
       ...(shaft || attach ? { type: 'straight' } : {}),
