@@ -53,7 +53,8 @@ export type Mutation =
   | { kind: 'set_discuss'; id: string; discuss: boolean }
   | { kind: 'add_text_node'; x: number; y: number; text?: string; width?: number; height?: number }
   | { kind: 'add_file_node'; x: number; y: number; file: string; width?: number; height?: number }
-  | { kind: 'add_edge'; from: string; to: string; fromSide?: string; toSide?: string; label?: string }
+  | { kind: 'add_group'; x: number; y: number; width: number; height: number; label?: string }
+  | { kind: 'add_edge'; from: string; to: string; fromSide?: string; toSide?: string; label?: string; color?: string }
   | { kind: 'delete_node'; id: string }
   | { kind: 'delete_edge'; id: string }
   | { kind: 'add_rail'; orient: 'h' | 'v'; x: number; y: number; slots: number; pitch?: number; label?: string }

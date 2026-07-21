@@ -23,7 +23,7 @@ import {
 } from '@xyflow/react'
 import { api, type Mutation } from '../api'
 import { BoardActions, Connecting, EditRequest, type BoardActionsValue, type EditRequestValue } from './actions'
-import { clipRead, clipWrite, parsePayload, type ClipPayload } from './clipboard'
+import { clipRead, clipWrite, parsePayload, type ClipCard, type ClipPayload } from './clipboard'
 import {
   absolutePosition,
   buildRailLookup,
@@ -67,7 +67,7 @@ function BoardInner({ path, changeSignal }: Props) {
   nodesRef.current = nodes
   const edgesRef = useRef<FlowEdge[]>([])
   edgesRef.current = edges
-  const { screenToFlowPosition, getZoom } = useReactFlow()
+  const { screenToFlowPosition, getZoom, fitView } = useReactFlow()
   // touch devices get a selection toolbar: double-click, drag-from-handle and
   // the Delete key have no natural touch equivalent
   const coarse = useMediaQuery(COARSE_QUERY)
@@ -815,6 +815,45 @@ function BoardInner({ path, changeSignal }: Props) {
     return true
   }, [])
 
+  /** materialize cards (+ their inner edges & colors) into the board. `at` lands
+   *  the payload's top-left there; otherwise a +32 offset. Shared by paste & duplicate. */
+  const pasteCards = useCallback(
+    async (cards: ClipCard[], edges: ClipPayload['edges'], at?: { x: number; y: number }) => {
+      if (cards.length === 0) return
+      const minX = Math.min(...cards.map((c) => c.x))
+      const minY = Math.min(...cards.map((c) => c.y))
+      const dx = at ? at.x - minX : 32
+      const dy = at ? at.y - minY : 32
+      const batch = cards.map((c) =>
+        c.type === 'file' && c.file
+          ? ({ kind: 'add_file_node', x: c.x + dx, y: c.y + dy, file: c.file, width: c.width, height: c.height } as Mutation)
+          : ({
+              kind: 'add_text_node',
+              x: c.x + dx,
+              y: c.y + dy,
+              text: c.type === 'link' && c.url ? c.url : (c.text ?? ''),
+              width: c.width,
+              height: c.height,
+            } as Mutation),
+      )
+      const result = await api.mutate(path, batch)
+      const newIds = result.summary.filter((line) => line.startsWith('added ')).map((line) => line.slice('added '.length))
+      const idMap = new Map(cards.map((c, i) => [c.id, newIds[i]]))
+      const follow: Mutation[] = []
+      cards.forEach((c, i) => {
+        const id = newIds[i]
+        if (id && c.color) follow.push({ kind: 'set_color', id, color: c.color })
+      })
+      for (const e of edges ?? []) {
+        const from = idMap.get(e.from)
+        const to = idMap.get(e.to)
+        if (from && to) follow.push({ kind: 'add_edge', from, to, fromSide: e.fromSide, toSide: e.toSide, label: e.label })
+      }
+      if (follow.length > 0) await api.mutate(path, follow)
+    },
+    [path],
+  )
+
   /** paste at `at` (flow coords: payload top-left lands there) or offset from the original spot */
   const pasteClipboard = useCallback(
     (at?: { x: number; y: number }) => {
@@ -824,53 +863,11 @@ function BoardInner({ path, changeSignal }: Props) {
         const payload = parsePayload(text)
         try {
           if (payload) {
-            const minX = Math.min(...payload.cards.map((c) => c.x))
-            const minY = Math.min(...payload.cards.map((c) => c.y))
-            const dx = at ? at.x - minX : 32
-            const dy = at ? at.y - minY : 32
-            const batch = payload.cards.map((c) =>
-              c.type === 'file' && c.file
-                ? ({
-                    kind: 'add_file_node',
-                    x: c.x + dx,
-                    y: c.y + dy,
-                    file: c.file,
-                    width: c.width,
-                    height: c.height,
-                  } as Mutation)
-                : ({
-                    kind: 'add_text_node',
-                    x: c.x + dx,
-                    y: c.y + dy,
-                    text: c.type === 'link' && c.url ? c.url : (c.text ?? ''),
-                    width: c.width,
-                    height: c.height,
-                  } as Mutation),
-            )
-            const result = await api.mutate(path, batch)
-            const newIds = result.summary
-              .filter((line) => line.startsWith('added '))
-              .map((line) => line.slice('added '.length))
-            const idMap = new Map(payload.cards.map((c, i) => [c.id, newIds[i]]))
-            const follow: Mutation[] = []
-            payload.cards.forEach((c, i) => {
-              const id = newIds[i]
-              if (id && c.color) follow.push({ kind: 'set_color', id, color: c.color })
-            })
-            for (const e of payload.edges ?? []) {
-              const from = idMap.get(e.from)
-              const to = idMap.get(e.to)
-              if (from && to) {
-                follow.push({ kind: 'add_edge', from, to, fromSide: e.fromSide, toSide: e.toSide, label: e.label })
-              }
-            }
-            if (follow.length > 0) await api.mutate(path, follow)
+            await pasteCards(payload.cards, payload.edges, at)
           } else {
             // plain text becomes a card
             const p = at ?? screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
-            await api.mutate(path, [
-              { kind: 'add_text_node', x: at ? p.x : p.x - 150, y: at ? p.y : p.y - 50, text },
-            ])
+            await api.mutate(path, [{ kind: 'add_text_node', x: at ? p.x : p.x - 150, y: at ? p.y : p.y - 50, text }])
           }
           await load()
         } catch (e) {
@@ -878,15 +875,88 @@ function BoardInner({ path, changeSignal }: Props) {
         }
       })()
     },
-    [path, load, screenToFlowPosition],
+    [path, load, screenToFlowPosition, pasteCards],
   )
+
+  /** ⌘D — duplicate the selected cards in place (+32 offset), edges & colors intact */
+  const duplicateSelection = useCallback(() => {
+    const map = byId()
+    const cards = selectionRef.current.nodes
+      .map((id) => map.get(id))
+      .filter((n): n is PSFlowNode => !!n && (n.type === 'text' || n.type === 'file' || n.type === 'link'))
+    if (cards.length === 0) return
+    const ids = new Set(cards.map((n) => n.id))
+    const clips: ClipCard[] = cards.map((n) => {
+      const abs = absolutePosition(n, map)
+      const node = n.data.node
+      return { id: n.id, type: node.type, text: node.text, file: node.file, url: node.url, color: node.color, x: abs.x, y: abs.y, width: node.width, height: node.height }
+    })
+    const clipEdges = edgesRef.current
+      .filter((e) => ids.has(e.source) && ids.has(e.target))
+      .map((e) => ({
+        from: e.source,
+        to: e.target,
+        fromSide: (e.sourceHandle as string | null) ?? undefined,
+        toSide: (e.targetHandle as string | null) ?? undefined,
+        label: typeof e.label === 'string' ? e.label : undefined,
+      }))
+    void (async () => {
+      try {
+        await pasteCards(clips, clipEdges)
+        await load()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+      }
+    })()
+  }, [load, pasteCards])
+
+  /** ⌘G — box the selected cards into a group (membership is geometric) */
+  const groupSelection = useCallback(() => {
+    const map = byId()
+    const cards = selectionRef.current.nodes
+      .map((id) => map.get(id))
+      .filter((n): n is PSFlowNode => !!n && (n.type === 'text' || n.type === 'file' || n.type === 'link'))
+    if (cards.length === 0) return
+    const PAD = 30
+    const TOP = 34 // room for the group's label bar so cards don't sit under it
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (const n of cards) {
+      const abs = absolutePosition(n, map)
+      minX = Math.min(minX, abs.x)
+      minY = Math.min(minY, abs.y)
+      maxX = Math.max(maxX, abs.x + n.data.node.width)
+      maxY = Math.max(maxY, abs.y + n.data.node.height)
+    }
+    mutate([
+      {
+        kind: 'add_group',
+        x: minX - PAD,
+        y: minY - PAD - TOP,
+        width: maxX - minX + PAD * 2,
+        height: maxY - minY + PAD * 2 + TOP,
+        label: '',
+      },
+    ])
+  }, [mutate])
 
   useEffect(() => {
     const inEditor = (target: EventTarget | null) =>
       !!(target as HTMLElement | null)?.closest?.('textarea, input, [contenteditable]')
     const onKey = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || (event.key !== 'c' && event.key !== 'v' && event.key !== 'x')) return
-      if (inEditor(event.target)) return // never hijack copy/cut/paste while typing
+      if (inEditor(event.target)) return // never hijack a shortcut while typing in a card/chat
+      const mod = event.metaKey || event.ctrlKey
+      // fit view — Shift+1 = whole board, Shift+2 = current selection (Heptabase-style)
+      if (event.shiftKey && !mod && (event.code === 'Digit1' || event.code === 'Digit2')) {
+        const sel = selectionRef.current.nodes
+        const nodesOpt = event.code === 'Digit2' && sel.length > 0 ? sel.map((id) => ({ id })) : undefined
+        event.preventDefault()
+        void fitView({ nodes: nodesOpt, padding: 0.2, duration: 300 })
+        return
+      }
+      if (!mod) return
       if (event.key === 'v') {
         event.preventDefault()
         pasteClipboard()
@@ -894,7 +964,19 @@ function BoardInner({ path, changeSignal }: Props) {
         // only claim ⌘C when we actually copied — else the browser's own copy
         // (e.g. selected chat text) must proceed
         if (copyCards()) event.preventDefault()
-      } else {
+      } else if (event.key === 'd') {
+        // ⌘D duplicate — only claim it when there is a selection to duplicate
+        if (selectionRef.current.nodes.length > 0) {
+          event.preventDefault()
+          duplicateSelection()
+        }
+      } else if (event.key === 'g') {
+        // ⌘G group the selected cards
+        if (selectionRef.current.nodes.length > 0) {
+          event.preventDefault()
+          groupSelection()
+        }
+      } else if (event.key === 'x') {
         // ⌘X cut = copy the selected cards, then delete exactly those. Only
         // real cards (text/file/link) — never groups, rails, or joints.
         const map = byId()
@@ -910,7 +992,7 @@ function BoardInner({ path, changeSignal }: Props) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [copyCards, pasteClipboard, mutate])
+  }, [copyCards, pasteClipboard, duplicateSelection, groupSelection, mutate, fitView])
 
   // rail draw tool: one stroke on the canvas becomes a rail — direction locks
   // to whichever axis dominates, slot count follows the stroke length

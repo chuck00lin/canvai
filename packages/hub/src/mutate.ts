@@ -31,7 +31,8 @@ export type Mutation =
   | { kind: 'set_discuss'; id: string; discuss: boolean }
   | { kind: 'add_text_node'; x: number; y: number; text?: string; width?: number; height?: number }
   | { kind: 'add_file_node'; x: number; y: number; file: string; width?: number; height?: number }
-  | { kind: 'add_edge'; from: string; to: string; fromSide?: Side; toSide?: Side; label?: string }
+  | { kind: 'add_group'; x: number; y: number; width: number; height: number; label?: string }
+  | { kind: 'add_edge'; from: string; to: string; fromSide?: Side; toSide?: Side; label?: string; color?: string }
   | { kind: 'delete_node'; id: string }
   | { kind: 'delete_edge'; id: string }
   | { kind: 'add_rail'; orient: RailOrient; x: number; y: number; slots: number; pitch?: number; label?: string }
@@ -129,6 +130,23 @@ export function applyMutations(data: CanvasData, mutations: Mutation[]): MutateO
         summary.push(`added ${node.id}`)
         break
       }
+      case 'add_group': {
+        // the human boxed a selection into a group; membership is geometric
+        // (containerOf), so we just drop an enclosing group node
+        const node: CanvasNode = {
+          id: genId(),
+          type: 'group',
+          label: m.label ?? '',
+          x: Math.round(m.x),
+          y: Math.round(m.y),
+          width: Math.round(m.width),
+          height: Math.round(m.height),
+        }
+        data.nodes.push(node)
+        movedIds.push(node.id) // human placed it → pin so auto-layout leaves it put
+        summary.push(`added ${node.id}`)
+        break
+      }
       case 'add_edge': {
         const from = mustGet(m.from)
         const to = mustGet(m.to)
@@ -143,6 +161,7 @@ export function applyMutations(data: CanvasData, mutations: Mutation[]): MutateO
           toNode: to.id,
           ...(m.toSide ? { toSide: m.toSide } : {}),
           ...(m.label ? { label: m.label } : {}),
+          ...(m.color ? { color: m.color } : {}),
         })
         summary.push(`edge ${from.id} -> ${to.id}`)
         break
