@@ -76,6 +76,10 @@ function BoardInner({ path, changeSignal }: Props) {
   const [editReq, setEditReq] = useState<EditRequestValue>({ id: '', seq: 0 })
   // toolbar shows the color palette instead of actions
   const [colorMode, setColorMode] = useState(false)
+  // ⌘F find-on-board: a floating search box that zooms to matching cards
+  const [find, setFind] = useState<{ open: boolean; q: string }>({ open: false, q: '' })
+  const findIdx = useRef(0)
+  const findInputRef = useRef<HTMLInputElement>(null)
   const boardRef = useRef<HTMLDivElement>(null)
 
   // WebKit ignores touch-action on descendants of CSS-transformed ancestors
@@ -966,6 +970,38 @@ function BoardInner({ path, changeSignal }: Props) {
     ])
   }, [mutate])
 
+  const findMatchIds = useCallback((q: string) => {
+    const s = q.trim().toLowerCase()
+    if (!s) return [] as string[]
+    return nodesRef.current
+      .filter((n) => {
+        if (n.type !== 'text' && n.type !== 'file' && n.type !== 'link' && n.type !== 'group') return false
+        const node = n.data.node
+        return `${node.text ?? ''} ${node.label ?? ''}`.toLowerCase().includes(s)
+      })
+      .map((n) => n.id)
+  }, [])
+
+  /** live find: fit all matches; `cycle` steps through them one at a time */
+  const runFind = useCallback(
+    (q: string, cycle = false) => {
+      const ids = findMatchIds(q)
+      if (ids.length === 0) return
+      if (cycle) {
+        findIdx.current = (findIdx.current + 1) % ids.length
+        void fitView({ nodes: [{ id: ids[findIdx.current] }], padding: 0.4, duration: 300, maxZoom: 1.4 })
+      } else {
+        findIdx.current = 0
+        void fitView({ nodes: ids.map((id) => ({ id })), padding: 0.3, duration: 300 })
+      }
+    },
+    [findMatchIds, fitView],
+  )
+
+  useEffect(() => {
+    if (find.open) findInputRef.current?.focus()
+  }, [find.open])
+
   useEffect(() => {
     const inEditor = (target: EventTarget | null) =>
       !!(target as HTMLElement | null)?.closest?.('textarea, input, [contenteditable]')
@@ -981,7 +1017,10 @@ function BoardInner({ path, changeSignal }: Props) {
         return
       }
       if (!mod) return
-      if (event.key === 'v') {
+      if (event.key === 'f') {
+        event.preventDefault()
+        setFind((prev) => ({ open: true, q: prev.q }))
+      } else if (event.key === 'v') {
         event.preventDefault()
         pasteClipboard()
       } else if (event.key === 'c') {
@@ -1271,6 +1310,34 @@ function BoardInner({ path, changeSignal }: Props) {
         </EditRequest.Provider>
        </Connecting.Provider>
       </BoardActions.Provider>
+      {find.open && (
+        <div className="ps-find">
+          <input
+            ref={findInputRef}
+            className="nodrag"
+            value={find.q}
+            placeholder={t('find.placeholder')}
+            onChange={(e) => {
+              const q = e.target.value
+              setFind({ open: true, q })
+              runFind(q)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                runFind(find.q, true)
+              } else if (e.key === 'Escape') {
+                e.preventDefault()
+                setFind({ open: false, q: '' })
+              }
+            }}
+          />
+          <span className="ps-find-count">{find.q.trim() ? findMatchIds(find.q).length : ''}</span>
+          <button onClick={() => setFind({ open: false, q: '' })} aria-label="close find">
+            ✕
+          </button>
+        </div>
+      )}
       <button className="ps-addcard" onClick={addCard} title="add a text card at the viewport center">
         {t('card.add')}
       </button>

@@ -1321,6 +1321,43 @@ body {
   flex-direction: column;
   gap: 2px;
 }
+
+.ps-find {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #fff;
+  border: 1px solid var(--hair);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(20, 24, 33, 0.16);
+}
+.ps-find input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  width: 180px;
+}
+.ps-find .ps-find-count {
+  font-size: 12px;
+  opacity: 0.55;
+  min-width: 22px;
+  text-align: right;
+}
+.ps-find button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.55;
+  font-size: 14px;
+  padding: 0 2px;
+}
 .ps-ctxmenu > button {
   display: block;
   width: 100%;

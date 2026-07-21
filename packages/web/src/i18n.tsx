@@ -35,6 +35,7 @@ const STRINGS = {
   'toolbar.delete.confirm': { en: 'Delete?', zh: '確定刪除' },
   'toolbar.reverse': { en: 'Reverse', zh: '反向' },
   'edge.label': { en: 'Label…', zh: '標籤…' },
+  'find.placeholder': { en: 'Find on board…', zh: '搜尋卡片…' },
   'toolbar.connectHint': { en: 'tap the target card to connect', zh: '點目標卡片完成連線' },
   'toolbar.cancel': { en: 'Cancel', zh: '取消' },
 
