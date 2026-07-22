@@ -14,6 +14,7 @@ import {
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
+  ViewportPortal,
   useEdgesState,
   useNodesState,
   useReactFlow,
@@ -541,6 +542,50 @@ function BoardInner({ path, changeSignal }: Props) {
     (): RailLookup => buildRailLookup(nodesRef.current, edgesRef.current),
     [],
   )
+  // alignment guides: while dragging a single card, light up shared edges/centers
+  // with other cards and snap to them on drop (Figma-style). Pure overlay + a
+  // ≤ ALIGN_THRESH nudge at commit — the live drag itself is never touched.
+  const ALIGN_THRESH = 6
+  const [alignGuides, setAlignGuides] = useState<{
+    vx?: number
+    vSpan?: [number, number]
+    hy?: number
+    hSpan?: [number, number]
+  }>({})
+
+  const computeAlign = useCallback((draggedId: string, map: Map<string, PSFlowNode>) => {
+    const d = map.get(draggedId)
+    if (!d || (d.type !== 'text' && d.type !== 'file' && d.type !== 'link')) return null
+    const a = absolutePosition(d, map)
+    const dw = d.data.node.width
+    const dh = d.data.node.height
+    const dxs = [a.x, a.x + dw / 2, a.x + dw]
+    const dys = [a.y, a.y + dh / 2, a.y + dh]
+    let bv: { d: number; line: number; span: [number, number] } | null = null
+    let bh: { d: number; line: number; span: [number, number] } | null = null
+    for (const o of map.values()) {
+      if (o.id === draggedId) continue
+      if (o.type !== 'text' && o.type !== 'file' && o.type !== 'link' && o.type !== 'group') continue
+      const oa = absolutePosition(o, map)
+      const ow = o.data.node.width
+      const oh = o.data.node.height
+      for (const dvx of dxs)
+        for (const ovx of [oa.x, oa.x + ow / 2, oa.x + ow]) {
+          const diff = ovx - dvx
+          if (Math.abs(diff) <= ALIGN_THRESH && (!bv || Math.abs(diff) < Math.abs(bv.d)))
+            bv = { d: diff, line: ovx, span: [Math.min(a.y, oa.y), Math.max(a.y + dh, oa.y + oh)] }
+        }
+      for (const dvy of dys)
+        for (const ovy of [oa.y, oa.y + oh / 2, oa.y + oh]) {
+          const diff = ovy - dvy
+          if (Math.abs(diff) <= ALIGN_THRESH && (!bh || Math.abs(diff) < Math.abs(bh.d)))
+            bh = { d: diff, line: ovy, span: [Math.min(a.x, oa.x), Math.max(a.x + dw, oa.x + ow)] }
+        }
+    }
+    if (!bv && !bh) return null
+    return { vx: bv?.line, vSpan: bv?.span, dx: bv?.d ?? 0, hy: bh?.line, hSpan: bh?.span, dy: bh?.d ?? 0 }
+  }, [])
+
   const onNodeDrag = useCallback(
     (_event: unknown, node: FlowNode) => {
       if (node.type !== 'text' && node.type !== 'file' && node.type !== 'link') return
@@ -551,14 +596,17 @@ function BoardInner({ path, changeSignal }: Props) {
       const hit = nearestSlot(railLookup(), a.x + current.data.node.width / 2, a.y + current.data.node.height / 2)
       const hint = hit?.jointId ?? null
       setSnapHint((previous) => (previous === hint ? previous : hint))
+      const align = computeAlign(node.id, map)
+      setAlignGuides(align ? { vx: align.vx, vSpan: align.vSpan, hy: align.hy, hSpan: align.hSpan } : {})
     },
-    [railLookup],
+    [railLookup, computeAlign],
   )
 
   const onNodeDragStop = useCallback(
     (_event: unknown, _node: FlowNode, draggedNodes: FlowNode[]) => {
       dragging.current = false
       setSnapHint(null)
+      setAlignGuides({})
       const map = byId()
       const lookup = railLookup()
       const moves = new Map<string, { x: number; y: number }>()
@@ -629,6 +677,16 @@ function BoardInner({ path, changeSignal }: Props) {
           // Detaching stays explicit: delete the dashed edge.
         }
       }
+      // alignment snap on drop: nudge a single dragged card onto the guide it
+      // showed (≤ ALIGN_THRESH). Not for rail-seated cards or multi-drags.
+      if (draggedNodes.length === 1) {
+        const only = draggedNodes[0]
+        const cur = moves.get(only.id)
+        if (cur && !skipGeometry.has(only.id) && (only.type === 'text' || only.type === 'file' || only.type === 'link')) {
+          const align = computeAlign(only.id, map)
+          if (align && (align.dx || align.dy)) moves.set(only.id, { x: cur.x + align.dx, y: cur.y + align.dy })
+        }
+      }
       const changed = [...moves.entries()].filter(
         ([id, pos]) => !skipGeometry.has(id) && movedEnough(id, pos),
       )
@@ -653,7 +711,7 @@ function BoardInner({ path, changeSignal }: Props) {
         if (changed.length === 0 && railChanges.length === 0) void load()
       }
     },
-    [mutate, load, railLookup],
+    [mutate, load, railLookup, computeAlign],
   )
 
   // true during a connection drag → cards force all handles mounted so a
@@ -1365,6 +1423,36 @@ function BoardInner({ path, changeSignal }: Props) {
             <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} />
             <Controls showInteractive={false} />
             <MiniMap pannable zoomable nodeColor={(n) => colorOf((n as PSFlowNode).data?.node?.color) ?? '#e2e5e9'} />
+            {(alignGuides.vx !== undefined || alignGuides.hy !== undefined) && (
+              <ViewportPortal>
+                {alignGuides.vx !== undefined && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      transform: `translate(${alignGuides.vx}px, ${alignGuides.vSpan?.[0] ?? 0}px)`,
+                      width: 1,
+                      height: alignGuides.vSpan ? Math.max(1, alignGuides.vSpan[1] - alignGuides.vSpan[0]) : 0,
+                      background: '#ff3b7f',
+                      pointerEvents: 'none',
+                      zIndex: 4,
+                    }}
+                  />
+                )}
+                {alignGuides.hy !== undefined && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      transform: `translate(${alignGuides.hSpan?.[0] ?? 0}px, ${alignGuides.hy}px)`,
+                      height: 1,
+                      width: alignGuides.hSpan ? Math.max(1, alignGuides.hSpan[1] - alignGuides.hSpan[0]) : 0,
+                      background: '#ff3b7f',
+                      pointerEvents: 'none',
+                      zIndex: 4,
+                    }}
+                  />
+                )}
+              </ViewportPortal>
+            )}
           </ReactFlow>
         </EditRequest.Provider>
        </Connecting.Provider>
