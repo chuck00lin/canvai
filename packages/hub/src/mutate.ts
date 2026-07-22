@@ -35,6 +35,7 @@ export type Mutation =
   | { kind: 'add_edge'; from: string; to: string; fromSide?: Side; toSide?: Side; label?: string; color?: string }
   | { kind: 'delete_node'; id: string }
   | { kind: 'delete_edge'; id: string }
+  | { kind: 'replace_board'; data: CanvasData }
   | { kind: 'add_rail'; orient: RailOrient; x: number; y: number; slots: number; pitch?: number; label?: string }
   | { kind: 'rail_attach'; rail: string; card: string; slot: number }
   | { kind: 'rail_detach'; rail: string; card: string }
@@ -188,6 +189,19 @@ export function applyMutations(data: CanvasData, mutations: Mutation[]): MutateO
         data.edges = data.edges.filter((e) => e.id !== m.id)
         if (data.edges.length === before) throw new Error(`unknown edge id: "${m.id}"`)
         summary.push(`deleted edge ${m.id}`)
+        break
+      }
+      case 'replace_board': {
+        // undo/redo: restore a full prior board snapshot wholesale. Guard against
+        // a malformed payload wiping the board.
+        if (!m.data || !Array.isArray(m.data.nodes) || !Array.isArray(m.data.edges)) {
+          throw new Error('replace_board: data must have nodes[] and edges[]')
+        }
+        const oldIds = new Set(nodes(data).map((n) => n.id))
+        data.nodes = m.data.nodes.map((n) => ({ ...n }))
+        data.edges = m.data.edges.map((e) => ({ ...e }))
+        for (const id of oldIds) if (!data.nodes.some((n) => n.id === id)) deletedIds.push(id)
+        summary.push(`replaced board (${data.nodes.length} nodes, ${data.edges.length} edges)`)
         break
       }
       case 'add_rail': {

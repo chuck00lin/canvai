@@ -57,6 +57,7 @@ export type Mutation =
   | { kind: 'add_edge'; from: string; to: string; fromSide?: string; toSide?: string; label?: string; color?: string }
   | { kind: 'delete_node'; id: string }
   | { kind: 'delete_edge'; id: string }
+  | { kind: 'replace_board'; data: CanvasData }
   | { kind: 'add_rail'; orient: 'h' | 'v'; x: number; y: number; slots: number; pitch?: number; label?: string }
   | { kind: 'rail_attach'; rail: string; card: string; slot: number }
   | { kind: 'rail_detach'; rail: string; card: string }

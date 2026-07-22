@@ -21,7 +21,7 @@ import {
   type Edge as FlowEdge,
   type Node as FlowNode,
 } from '@xyflow/react'
-import { api, type Mutation } from '../api'
+import { api, type CanvasData, type Mutation } from '../api'
 import { BoardActions, Connecting, EditRequest, type BoardActionsValue, type EditRequestValue } from './actions'
 import { clipRead, clipWrite, parsePayload, type ClipCard, type ClipPayload } from './clipboard'
 import {
@@ -67,6 +67,11 @@ function BoardInner({ path, changeSignal }: Props) {
   nodesRef.current = nodes
   const edgesRef = useRef<FlowEdge[]>([])
   edgesRef.current = edges
+  // undo/redo: full-board snapshots (git-backed; the forward write path is
+  // untouched, so this can only ever affect ⌘Z, never normal edits)
+  const boardDataRef = useRef<CanvasData | null>(null)
+  const undoStack = useRef<CanvasData[]>([])
+  const redoStack = useRef<CanvasData[]>([])
   const { screenToFlowPosition, getZoom, fitView } = useReactFlow()
   // touch devices get a selection toolbar: double-click, drag-from-handle and
   // the Delete key have no natural touch equivalent
@@ -378,6 +383,7 @@ function BoardInner({ path, changeSignal }: Props) {
   const load = useCallback(async () => {
     try {
       const { data, pinned } = await api.board(path)
+      boardDataRef.current = data // undo/redo snapshot baseline
       const mapped = toFlow(data, new Set(pinned))
       // selection survives sync reloads — e.g. picking a color triggers a
       // board_changed, and losing selection would close the toolbar mid-use
@@ -409,13 +415,55 @@ function BoardInner({ path, changeSignal }: Props) {
     else void load()
   }, [changeSignal, load])
 
+  const UNDO_LIMIT = 60
+  /** record the pre-change board state so this action can be undone */
+  const snapshot = useCallback(() => {
+    if (!boardDataRef.current) return
+    undoStack.current.push(structuredClone(boardDataRef.current))
+    if (undoStack.current.length > UNDO_LIMIT) undoStack.current.shift()
+    redoStack.current = []
+  }, [])
+
+  /** restore a snapshot wholesale (used by undo/redo — does NOT record) */
+  const applyReplace = useCallback(
+    (data: CanvasData) => {
+      boardDataRef.current = data
+      api
+        .mutate(path, [{ kind: 'replace_board', data }])
+        .then(() => load())
+        .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+    },
+    [path, load],
+  )
+
+  const undo = useCallback(() => {
+    const snap = undoStack.current.pop()
+    if (!snap) return
+    if (boardDataRef.current) {
+      redoStack.current.push(structuredClone(boardDataRef.current))
+      if (redoStack.current.length > UNDO_LIMIT) redoStack.current.shift()
+    }
+    applyReplace(snap)
+  }, [applyReplace])
+
+  const redo = useCallback(() => {
+    const snap = redoStack.current.pop()
+    if (!snap) return
+    if (boardDataRef.current) {
+      undoStack.current.push(structuredClone(boardDataRef.current))
+      if (undoStack.current.length > UNDO_LIMIT) undoStack.current.shift()
+    }
+    applyReplace(snap)
+  }, [applyReplace])
+
   const mutate = useCallback(
     (changes: Mutation[]) => {
       if (changes.length === 0) return
+      snapshot()
       api.mutate(path, changes).catch((e) => setError(e instanceof Error ? e.message : String(e)))
       // the hub broadcasts board_changed, which triggers the reload
     },
-    [path],
+    [path, snapshot],
   )
 
   const byId = () => new Map(nodesRef.current.map((n) => [n.id, n]))
@@ -705,6 +753,7 @@ function BoardInner({ path, changeSignal }: Props) {
   const addCardAt = useCallback(
     async (screen: { x: number; y: number }) => {
       const position = screenToFlowPosition(screen)
+      snapshot()
       try {
         const result = await api.mutate(path, [
           { kind: 'add_text_node', x: position.x - 100, y: position.y - 40, text: '' },
@@ -718,7 +767,7 @@ function BoardInner({ path, changeSignal }: Props) {
         setError(e instanceof Error ? e.message : String(e))
       }
     },
-    [path, screenToFlowPosition, load],
+    [path, screenToFlowPosition, load, snapshot],
   )
 
   const addCard = useCallback(
@@ -889,6 +938,7 @@ function BoardInner({ path, changeSignal }: Props) {
         const text = await clipRead()
         if (!text.trim()) return
         const payload = parsePayload(text)
+        snapshot()
         try {
           if (payload) {
             await pasteCards(payload.cards, payload.edges, at)
@@ -903,7 +953,7 @@ function BoardInner({ path, changeSignal }: Props) {
         }
       })()
     },
-    [path, load, screenToFlowPosition, pasteCards],
+    [path, load, screenToFlowPosition, pasteCards, snapshot],
   )
 
   /** ⌘D — duplicate the selected cards in place (+32 offset), edges & colors intact */
@@ -928,6 +978,7 @@ function BoardInner({ path, changeSignal }: Props) {
         toSide: (e.targetHandle as string | null) ?? undefined,
         label: typeof e.label === 'string' ? e.label : undefined,
       }))
+    snapshot()
     void (async () => {
       try {
         await pasteCards(clips, clipEdges)
@@ -936,7 +987,7 @@ function BoardInner({ path, changeSignal }: Props) {
         setError(e instanceof Error ? e.message : String(e))
       }
     })()
-  }, [load, pasteCards])
+  }, [load, pasteCards, snapshot])
 
   /** ⌘G — box the selected cards into a group (membership is geometric) */
   const groupSelection = useCallback(() => {
@@ -1020,6 +1071,14 @@ function BoardInner({ path, changeSignal }: Props) {
       if (event.key === 'f') {
         event.preventDefault()
         setFind((prev) => ({ open: true, q: prev.q }))
+      } else if (event.key === 'z') {
+        // ⌘Z undo · ⌘⇧Z redo (in-editor guard above lets native text-undo through)
+        event.preventDefault()
+        if (event.shiftKey) redo()
+        else undo()
+      } else if (event.key === 'y') {
+        event.preventDefault()
+        redo()
       } else if (event.key === 'v') {
         event.preventDefault()
         pasteClipboard()
@@ -1055,7 +1114,7 @@ function BoardInner({ path, changeSignal }: Props) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [copyCards, pasteClipboard, duplicateSelection, groupSelection, mutate, fitView])
+  }, [copyCards, pasteClipboard, duplicateSelection, groupSelection, undo, redo, mutate, fitView])
 
   // rail draw tool: one stroke on the canvas becomes a rail — direction locks
   // to whichever axis dominates, slot count follows the stroke length
